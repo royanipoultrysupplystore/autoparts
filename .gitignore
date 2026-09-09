@@ -30,8 +30,10 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files. .env.local holds the service role key and must never be
+# committed; .env.example documents what is needed and must be.
 .env*
+!.env.example
 
 # vercel
 .vercel

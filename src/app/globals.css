@@ -1,26 +1,225 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
+/* Dark mode is a deliberate toggle, never the default: this app is used
+   outdoors in daylight, where a light high-contrast surface wins. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------------------------------------------------------------------
+   Palette.
+
+   Base: warm neutral greys, so the app reads as a tool rather than a
+   spreadsheet. Accent: one deep steel blue, committed to throughout.
+   Amber is reserved -- literally -- for the `reserved` status, so it is
+   never spent on decoration.
+   --------------------------------------------------------------------- */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg:            #f7f6f4;
+  --surface:       #ffffff;
+  --surface-2:     #f2f0ed;
+  --surface-sunk:  #ebe8e4;
+  --border:        #ddd9d3;
+  --border-strong: #c4bfb7;
+
+  --text:          #1a1917;
+  --text-muted:    #57534e;
+  --text-subtle:   #78716c;
+
+  --accent:        #17547f;
+  --accent-hover:  #0f3f62;
+  --accent-soft:   #e8f0f6;
+  --accent-border: #b9d2e4;
+  --accent-text:   #ffffff;
+
+  --available:      #14712d;
+  --available-soft: #dcf5e2;
+  --reserved:       #a1560a;
+  --reserved-soft:  #fdefd6;
+  --sold:           #57534e;
+  --sold-soft:      #e7e4e0;
+  --kept:           #3f4d8a;
+  --kept-soft:      #e6e9f6;
+  --scrapped:       #ad2020;
+  --scrapped-soft:  #fce2e2;
+
+  --danger:        #ad2020;
+  --danger-soft:   #fce2e2;
+  --success:       #14712d;
+
+  --ring:          #17547f;
+
+  --radius:        0.625rem;
+
+  --shadow-sheet:  0 -8px 40px -12px rgb(26 25 23 / 0.25);
+  --shadow-card:   0 1px 2px 0 rgb(26 25 23 / 0.05);
+  --shadow-raised: 0 4px 16px -4px rgb(26 25 23 / 0.12);
+}
+
+.dark {
+  --bg:            #16151a;
+  --surface:       #1e1d23;
+  --surface-2:     #26252c;
+  --surface-sunk:  #121116;
+  --border:        #34323b;
+  --border-strong: #4a4753;
+
+  --text:          #f5f4f2;
+  --text-muted:    #b3afa8;
+  --text-subtle:   #8d8880;
+
+  --accent:        #4a97d1;
+  --accent-hover:  #6aabdd;
+  --accent-soft:   #16303f;
+  --accent-border: #2a5877;
+  --accent-text:   #0c1a24;
+
+  --available:      #5fd07f;
+  --available-soft: #12301b;
+  --reserved:       #e8a344;
+  --reserved-soft:  #35250d;
+  --sold:           #a8a29b;
+  --sold-soft:      #2a282e;
+  --kept:           #8f9de0;
+  --kept-soft:      #1c1f33;
+  --scrapped:       #f0736f;
+  --scrapped-soft:  #351616;
+
+  --danger:        #f0736f;
+  --danger-soft:   #351616;
+  --success:       #5fd07f;
+
+  --ring:          #4a97d1;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg:            var(--bg);
+  --color-surface:       var(--surface);
+  --color-surface-2:     var(--surface-2);
+  --color-surface-sunk:  var(--surface-sunk);
+  --color-line:          var(--border);
+  --color-line-strong:   var(--border-strong);
+
+  --color-ink:           var(--text);
+  --color-ink-muted:     var(--text-muted);
+  --color-ink-subtle:    var(--text-subtle);
+
+  --color-accent:        var(--accent);
+  --color-accent-hover:  var(--accent-hover);
+  --color-accent-soft:   var(--accent-soft);
+  --color-accent-border: var(--accent-border);
+  --color-accent-text:   var(--accent-text);
+
+  --color-available:      var(--available);
+  --color-available-soft: var(--available-soft);
+  --color-reserved:       var(--reserved);
+  --color-reserved-soft:  var(--reserved-soft);
+  --color-sold:           var(--sold);
+  --color-sold-soft:      var(--sold-soft);
+  --color-kept:           var(--kept);
+  --color-kept-soft:      var(--kept-soft);
+  --color-scrapped:       var(--scrapped);
+  --color-scrapped-soft:  var(--scrapped-soft);
+
+  --color-danger:        var(--danger);
+  --color-danger-soft:   var(--danger-soft);
+  --color-success:       var(--success);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+               "Segoe UI", Roboto, sans-serif;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    /* Never let the yard rubber-band the page while a sheet is open. */
+    overscroll-behavior-y: none;
+  }
+
+  /* Prices, mileage, counts: figures must line up in a column. */
+  .tnum {
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: "tnum" 1, "lnum" 1;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  /* iOS zooms any input under 16px on focus. Never let it. */
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1rem);
+  }
+
+  /* Respect the notch and the home indicator. */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer utilities {
+  /* Every tap target in this app clears 44px. */
+  .tap {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      var(--surface-2) 25%,
+      var(--surface-sunk) 37%,
+      var(--surface-2) 63%
+    );
+    background-size: 400% 100%;
+    animation: shimmer 1.4s ease infinite;
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0 50%;
+    }
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
