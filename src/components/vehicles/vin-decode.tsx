@@ -4,16 +4,33 @@ import { useState } from "react";
 import { ScanLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
+import type { BodyType, DrivetrainType, FuelType, TransmissionType } from "@/types/db";
 
 /**
  * VIN decode via the NHTSA vPIC API (free, no key, no account).
  *
- * Strictly a convenience. It fills fields the partner can then correct,
+ * Strictly a convenience. It offers values the partner can then correct,
  * and every one of them can be typed by hand instead. If the service is
  * down, slow, or wrong about a re-badged import, the form still works --
  * so this never blocks a save and never overwrites something already
  * filled in.
+ *
+ * It hands the decoded fields back to the form rather than writing into
+ * the DOM. The selects are React-controlled now, and poking their hidden
+ * inputs would change what gets submitted without changing what the
+ * partner sees -- the worst of both.
  */
+
+export type DecodedVehicle = {
+  year?: string;
+  make?: string;
+  model?: string;
+  bodyType?: BodyType;
+  fuelType?: FuelType;
+  drivetrain?: DrivetrainType;
+  transmission?: TransmissionType;
+  engine?: string;
+};
 
 type VpicResult = {
   ModelYear?: string;
@@ -25,12 +42,11 @@ type VpicResult = {
   EngineCylinders?: string;
   TransmissionStyle?: string;
   DriveType?: string;
-  ErrorCode?: string;
 };
 
 /** vPIC body classes are verbose; map the common ones onto our enum. */
-function toBodyType(bodyClass?: string): string | null {
-  if (!bodyClass) return null;
+function toBodyType(bodyClass?: string): BodyType | undefined {
+  if (!bodyClass) return undefined;
   const b = bodyClass.toLowerCase();
   if (b.includes("sedan") || b.includes("saloon")) return "sedan";
   if (b.includes("coupe")) return "coupe";
@@ -39,72 +55,54 @@ function toBodyType(bodyClass?: string): string | null {
   if (b.includes("pickup") || b.includes("truck")) return "truck";
   if (b.includes("van") || b.includes("minivan")) return "van";
   if (b.includes("wagon")) return "wagon";
-  return null;
+  return undefined;
 }
 
-function toFuelType(fuel?: string): string | null {
-  if (!fuel) return null;
+function toFuelType(fuel?: string): FuelType | undefined {
+  if (!fuel) return undefined;
   const f = fuel.toLowerCase();
   if (f.includes("diesel")) return "diesel";
   if (f.includes("electric") && f.includes("gas")) return "hybrid";
   if (f.includes("gasoline") || f.includes("petrol") || f.includes("flexible")) return "gas";
-  return null;
+  return undefined;
 }
 
-function toDrivetrain(drive?: string): string | null {
-  if (!drive) return null;
+function toDrivetrain(drive?: string): DrivetrainType | undefined {
+  if (!drive) return undefined;
   const d = drive.toLowerCase();
   if (d.includes("4wd") || d.includes("4x4")) return "4wd";
   if (d.includes("awd") || d.includes("all-wheel")) return "awd";
   if (d.includes("rwd") || d.includes("rear")) return "rwd";
   if (d.includes("fwd") || d.includes("front")) return "fwd";
-  return null;
+  return undefined;
 }
 
-function toTransmission(style?: string): string | null {
-  if (!style) return null;
+function toTransmission(style?: string): TransmissionType | undefined {
+  if (!style) return undefined;
   const s = style.toLowerCase();
   if (s.includes("manual")) return "manual";
   if (s.includes("automat") || s.includes("cvt") || s.includes("dual")) return "auto";
-  return null;
+  return undefined;
 }
 
-/** Sets a form control's value and lets React and the browser both see it. */
-function setField(form: HTMLFormElement, name: string, value: string | null, force = false) {
-  if (!value) return false;
-  const el = form.elements.namedItem(name) as
-    | HTMLInputElement
-    | HTMLSelectElement
-    | null;
-  if (!el) return false;
-
-  // Never clobber something the partner already typed.
-  if (!force && el.value.trim() !== "") return false;
-
-  if (el instanceof HTMLSelectElement) {
-    const match = [...el.options].some((o) => o.value === value);
-    if (!match) return false;
-  }
-
-  const proto =
-    el instanceof HTMLSelectElement
-      ? HTMLSelectElement.prototype
-      : HTMLInputElement.prototype;
-  const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
-  setter?.call(el, value);
-  el.dispatchEvent(new Event("input", { bubbles: true }));
-  el.dispatchEvent(new Event("change", { bubbles: true }));
-  return true;
+function titleCase(s: string): string {
+  return s
+    .toLowerCase()
+    .split(" ")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
 }
 
-export function VinDecodeButton() {
+export function VinDecodeButton({
+  onDecode,
+}: {
+  onDecode?: (decoded: DecodedVehicle) => number;
+}) {
   const [busy, setBusy] = useState(false);
 
   async function decode(e: React.MouseEvent<HTMLButtonElement>) {
     const form = e.currentTarget.closest("form");
-    if (!form) return;
-
-    const vinInput = form.elements.namedItem("vin") as HTMLInputElement | null;
+    const vinInput = form?.elements.namedItem("vin") as HTMLInputElement | null;
     const vin = vinInput?.value.trim().toUpperCase() ?? "";
 
     if (vin.length !== 17) {
@@ -142,16 +140,17 @@ export function VinDecodeButton() {
         .filter(Boolean)
         .join(" ");
 
-      const filled = [
-        setField(form, "year", r.ModelYear ?? null),
-        setField(form, "make", r.Make ? titleCase(r.Make) : null),
-        setField(form, "model", r.Model ?? null),
-        setField(form, "body_type", toBodyType(r.BodyClass)),
-        setField(form, "fuel_type", toFuelType(r.FuelTypePrimary)),
-        setField(form, "drivetrain", toDrivetrain(r.DriveType)),
-        setField(form, "transmission", toTransmission(r.TransmissionStyle)),
-        setField(form, "engine", engine || null),
-      ].filter(Boolean).length;
+      const filled =
+        onDecode?.({
+          year: r.ModelYear || undefined,
+          make: r.Make ? titleCase(r.Make) : undefined,
+          model: r.Model || undefined,
+          bodyType: toBodyType(r.BodyClass),
+          fuelType: toFuelType(r.FuelTypePrimary),
+          drivetrain: toDrivetrain(r.DriveType),
+          transmission: toTransmission(r.TransmissionStyle),
+          engine: engine || undefined,
+        }) ?? 0;
 
       if (filled === 0) {
         toast("Everything was already filled in", {
@@ -188,12 +187,4 @@ export function VinDecodeButton() {
       {busy ? "…" : "Decode"}
     </Button>
   );
-}
-
-function titleCase(s: string): string {
-  return s
-    .toLowerCase()
-    .split(" ")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
 }

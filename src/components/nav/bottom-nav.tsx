@@ -59,7 +59,7 @@ export function BottomNav({ showReports }: { showReports: boolean }) {
 
   return (
     <nav
-      className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 backdrop-blur-md"
+      className="pb-safe glass fixed inset-x-0 bottom-0 z-40 border-t"
       aria-label="Main"
     >
       <ul className="mx-auto flex max-w-[640px] items-stretch">
@@ -78,8 +78,8 @@ export function BottomNav({ showReports }: { showReports: boolean }) {
                   <span
                     className={cn(
                       "flex size-11 items-center justify-center rounded-full",
-                      "bg-accent text-accent-text shadow-[0_2px_10px_-2px_rgb(23_84_127/0.55)]",
-                      "transition-transform active:scale-95",
+                      "bg-accent text-accent-text shadow-[0_4px_14px_-3px_rgb(23_84_127/0.6)]",
+                      "transition-transform duration-150 ease-out-soft active:scale-90",
                     )}
                   >
                     <Icon className="size-6" strokeWidth={2.25} />
@@ -99,7 +99,7 @@ export function BottomNav({ showReports }: { showReports: boolean }) {
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "tap flex h-full flex-col items-center justify-center gap-1 px-2 pb-1.5 pt-2",
-                  "transition-colors",
+                  "transition-[color,transform] duration-150 ease-out-soft active:scale-95",
                   active ? "text-accent" : "text-ink-subtle active:text-ink",
                 )}
               >

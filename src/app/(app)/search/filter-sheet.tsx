@@ -11,7 +11,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Field, Input, NativeSelect } from "@/components/ui/field";
+import { Field, Input } from "@/components/ui/field";
+import { SimpleSelect } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { CONDITIONS } from "@/lib/vehicle-options";
 import { STATUS_LABELS } from "@/lib/format";
@@ -51,6 +52,9 @@ export function countActiveFilters(f: Filters): number {
 }
 
 const ALL_STATUSES: PartStatus[] = ["available", "reserved", "sold", "kept", "scrapped"];
+
+/** Sentinel: a select value cannot be the empty string. */
+const ALL_CATEGORIES = "__all";
 
 export function FilterSheet({
   filters,
@@ -190,23 +194,20 @@ export function FilterSheet({
             )}
 
             <Field label="Category" htmlFor="category-filter">
-              <NativeSelect
+              <SimpleSelect
                 id="category-filter"
-                value={draft.categories[0] ?? ""}
-                onChange={(e) =>
+                value={draft.categories[0] ?? ALL_CATEGORIES}
+                onValueChange={(v) =>
                   setDraft((d) => ({
                     ...d,
-                    categories: e.target.value ? [e.target.value] : [],
+                    categories: v === ALL_CATEGORIES ? [] : [v],
                   }))
                 }
-              >
-                <option value="">Every category</option>
-                {options.categories.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </NativeSelect>
+                options={[
+                  { value: ALL_CATEGORIES, label: "Every category" },
+                  ...options.categories.map((c) => ({ value: c, label: c })),
+                ]}
+              />
             </Field>
 
             <div className="pb-2" />

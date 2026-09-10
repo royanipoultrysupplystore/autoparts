@@ -35,7 +35,7 @@ export function ConfirmDialog({
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay
           className={cn(
-            "fixed inset-0 z-50 bg-[rgb(20_18_16/0.5)] backdrop-blur-[2px]",
+            "fixed inset-0 z-50 bg-[rgb(20_18_16/0.45)] backdrop-blur-[3px]",
             "data-[state=open]:animate-in data-[state=open]:fade-in-0",
             "data-[state=closed]:animate-out data-[state=closed]:fade-out-0",
           )}
@@ -43,8 +43,9 @@ export function ConfirmDialog({
         <DialogPrimitive.Content
           className={cn(
             "fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-[400px]",
-            "-translate-x-1/2 -translate-y-1/2 rounded-2xl border border-line bg-surface p-5",
-            "shadow-[var(--shadow-raised)]",
+            "-translate-x-1/2 -translate-y-1/2 rounded-2xl border p-5",
+            "glass shadow-[var(--shadow-raised)]",
+            "duration-200 ease-out-soft",
             "data-[state=open]:animate-in data-[state=open]:zoom-in-95 data-[state=open]:fade-in-0",
             "data-[state=closed]:animate-out data-[state=closed]:zoom-out-95 data-[state=closed]:fade-out-0",
           )}

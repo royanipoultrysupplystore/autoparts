@@ -9,9 +9,13 @@ import { cn } from "@/lib/utils";
  */
 const buttonVariants = cva(
   "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium " +
-    "transition-[background-color,border-color,color,box-shadow] duration-100 " +
+    "transition-[background-color,border-color,color,box-shadow,transform] " +
+    "duration-150 [transition-timing-function:var(--ms-ease-out)] " +
     "disabled:pointer-events-none disabled:opacity-45 " +
-    "[&_svg]:pointer-events-none [&_svg]:shrink-0 active:scale-[0.985] select-none",
+    "[&_svg]:pointer-events-none [&_svg]:shrink-0 select-none " +
+    // Presses land on the first touch: no zoom delay, and a scale that
+    // is felt rather than read.
+    "touch-manipulation active:scale-[0.97]",
   {
     variants: {
       variant: {

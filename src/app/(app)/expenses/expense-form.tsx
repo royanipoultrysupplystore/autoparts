@@ -12,7 +12,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Field, Input, MoneyInput, NativeSelect, Textarea } from "@/components/ui/field";
+import { Field, Input, MoneyInput, Textarea } from "@/components/ui/field";
+import { SimpleSelect } from "@/components/ui/select";
 import { toast } from "@/components/ui/toaster";
 import { createExpense, createReceiptUploadUrl } from "@/lib/actions/expenses";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
@@ -22,6 +23,12 @@ import { useProfile } from "@/components/profile-provider";
 import { cn } from "@/lib/utils";
 
 type Option = { id: string; label: string };
+
+/**
+ * A select cannot carry an empty string as a value, so "no vehicle" needs
+ * a sentinel. It is translated back to "" before the form is submitted.
+ */
+const NO_VEHICLE = "__none";
 
 /**
  * Quick-add expense.
@@ -49,6 +56,7 @@ export function ExpenseForm({
   const [amount, setAmount] = useState("");
   const [vehicleId, setVehicleId] = useState(defaultVehicleId ?? "");
   const [chosenCategory, setChosenCategory] = useState("misc");
+  const [paidBy, setPaidBy] = useState(profile.id);
   const [receiptPath, setReceiptPath] = useState("");
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -168,34 +176,26 @@ export function ExpenseForm({
                     : "Counts as overhead in the monthly report."
                 }
               >
-                <NativeSelect
+                <SimpleSelect
                   id="vehicle_id"
                   name="vehicle_id"
-                  value={vehicleId}
-                  onChange={(e) => setVehicleId(e.target.value)}
-                >
-                  <option value="">No — general business expense</option>
-                  {vehicles.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.label}
-                    </option>
-                  ))}
-                </NativeSelect>
+                  value={vehicleId || NO_VEHICLE}
+                  onValueChange={(v) => setVehicleId(v === NO_VEHICLE ? "" : v)}
+                  options={[
+                    { value: NO_VEHICLE, label: "No — general business expense" },
+                    ...vehicles.map((v) => ({ value: v.id, label: v.label })),
+                  ]}
+                />
               </Field>
 
               <Field label="What for" htmlFor="category">
-                <NativeSelect
+                <SimpleSelect
                   id="category"
                   name="category"
                   value={category}
-                  onChange={(e) => setChosenCategory(e.target.value)}
-                >
-                  {categories.map((c) => (
-                    <option key={c.value} value={c.value}>
-                      {c.label}
-                    </option>
-                  ))}
-                </NativeSelect>
+                  onValueChange={setChosenCategory}
+                  options={categories.map((c) => ({ value: c.value, label: c.label }))}
+                />
               </Field>
 
               <div className="grid grid-cols-2 gap-2.5">
@@ -209,13 +209,13 @@ export function ExpenseForm({
                 </Field>
 
                 <Field label="Who paid" htmlFor="paid_by">
-                  <NativeSelect id="paid_by" name="paid_by" defaultValue={profile.id}>
-                    {members.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.label}
-                      </option>
-                    ))}
-                  </NativeSelect>
+                  <SimpleSelect
+                    id="paid_by"
+                    name="paid_by"
+                    value={paidBy}
+                    onValueChange={setPaidBy}
+                    options={members.map((m) => ({ value: m.id, label: m.label }))}
+                  />
                 </Field>
               </div>
 

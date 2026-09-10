@@ -14,7 +14,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Field, Input, MoneyInput, NativeSelect, Textarea } from "@/components/ui/field";
+import { Field, Input, MoneyInput, Textarea } from "@/components/ui/field";
+import { SimpleSelect } from "@/components/ui/select";
 import { ConditionBadge, StatusPill } from "@/components/ui/status-pill";
 import { DetailRow, Divider } from "@/components/ui/primitives";
 import { PartIconTile } from "@/lib/icons/part-icons";
@@ -414,17 +415,12 @@ function SellView({
 
         <div className="grid grid-cols-2 gap-2.5">
           <Field label="Paid with" htmlFor="payment">
-            <NativeSelect
+            <SimpleSelect
               id="payment"
               value={payment}
-              onChange={(e) => setPayment(e.target.value as PaymentMethod)}
-            >
-              {PAYMENT_METHODS.map((p) => (
-                <option key={p.value} value={p.value}>
-                  {p.label}
-                </option>
-              ))}
-            </NativeSelect>
+              onValueChange={setPayment}
+              options={PAYMENT_METHODS.map((p) => ({ value: p.value, label: p.label }))}
+            />
           </Field>
 
           <Field label="Sold on" htmlFor="sale_date">
@@ -438,17 +434,12 @@ function SellView({
         </div>
 
         <Field label="Came from" htmlFor="channel">
-          <NativeSelect
+          <SimpleSelect
             id="channel"
             value={channel}
-            onChange={(e) => setChannel(e.target.value as SaleChannel)}
-          >
-            {SALE_CHANNELS.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-          </NativeSelect>
+            onValueChange={setChannel}
+            options={SALE_CHANNELS.map((c) => ({ value: c.value, label: c.label }))}
+          />
         </Field>
 
         <div className="grid grid-cols-2 gap-2.5">
@@ -670,17 +661,16 @@ function EditView({ part, onBack }: { part: SheetPart; onBack: () => void }) {
         </Field>
 
         <Field label="Condition" htmlFor="edit_condition">
-          <NativeSelect
+          <SimpleSelect
             id="edit_condition"
             value={condition}
-            onChange={(e) => setCondition(e.target.value as PartCondition)}
-          >
-            {CONDITIONS.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label} — {c.hint}
-              </option>
-            ))}
-          </NativeSelect>
+            onValueChange={setCondition}
+            options={CONDITIONS.map((c) => ({
+              value: c.value,
+              label: c.label,
+              hint: c.hint,
+            }))}
+          />
         </Field>
 
         <Field

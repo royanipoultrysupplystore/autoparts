@@ -4,7 +4,8 @@ import { useActionState, useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { CircleAlert, WandSparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Field, Input, MoneyInput, NativeSelect, Textarea } from "@/components/ui/field";
+import { Field, Input, MoneyInput, Textarea } from "@/components/ui/field";
+import { SimpleSelect } from "@/components/ui/select";
 import { Card, SectionHeading } from "@/components/ui/primitives";
 import { centsToInput, formatMoney, parseMoneyToCents } from "@/lib/money";
 import { todayInVancouver } from "@/lib/format";
@@ -21,8 +22,17 @@ import {
   yearOptions,
 } from "@/lib/vehicle-options";
 import type { ActionState } from "@/lib/actions/vehicles";
-import type { Vehicle, VehicleFinance } from "@/types/db";
-import { VinDecodeButton } from "./vin-decode";
+import type {
+  BodyType,
+  DrivetrainType,
+  FuelType,
+  TransmissionType,
+  Vehicle,
+  VehicleFinance,
+  VehicleSource,
+  VehicleStatus,
+} from "@/types/db";
+import { VinDecodeButton, type DecodedVehicle } from "./vin-decode";
 
 type Props = {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
@@ -42,25 +52,33 @@ export function VehicleForm({
   submitLabel,
 }: Props) {
   const [state, formAction] = useActionState(action, initial);
+  const isNew = !vehicle;
 
-  // Costs are kept in component state so the landed-cost total can add up
-  // as it is typed. They post as plain strings; the server parses cents.
+  // Costs are held in state so the landed total can add up as it is
+  // typed. They post as plain strings; the server parses the cents.
   const [purchase, setPurchase] = useState(centsToInput(finance?.purchase_price_cents) || "");
   const [auctionFee, setAuctionFee] = useState(centsToInput(finance?.auction_fee_cents) || "");
   const [transport, setTransport] = useState(centsToInput(finance?.transport_cost_cents) || "");
-  const [other, setOther] = useState(
-    centsToInput(finance?.other_acquisition_cost_cents) || "",
-  );
-  const [scrap, setScrap] = useState(centsToInput(finance?.scrap_income_cents) || "");
+  const [other, setOther] = useState(centsToInput(finance?.other_acquisition_cost_cents) || "");
 
   const [make, setMake] = useState(vehicle?.make ?? "");
+  const [year, setYear] = useState(String(vehicle?.year ?? new Date().getFullYear() - 8));
+  const [bodyType, setBodyType] = useState<BodyType | "">(vehicle?.body_type ?? "");
+  const [transmission, setTransmission] = useState<TransmissionType | "">(
+    vehicle?.transmission ?? "",
+  );
+  const [drivetrain, setDrivetrain] = useState<DrivetrainType | "">(vehicle?.drivetrain ?? "");
+  const [fuel, setFuel] = useState<FuelType>(vehicle?.fuel_type ?? "gas");
+  const [source, setSource] = useState<VehicleSource>(vehicle?.source ?? "icbc_auction");
+  const [status, setStatus] = useState<VehicleStatus>(vehicle?.status ?? "parting_out");
 
-  const landed = useMemo(() => {
-    const sum = [purchase, auctionFee, transport, other]
-      .map((v) => parseMoneyToCents(v) ?? 0)
-      .reduce((a, b) => a + b, 0);
-    return sum;
-  }, [purchase, auctionFee, transport, other]);
+  const landed = useMemo(
+    () =>
+      [purchase, auctionFee, transport, other]
+        .map((v) => parseMoneyToCents(v) ?? 0)
+        .reduce((a, b) => a + b, 0),
+    [purchase, auctionFee, transport, other],
+  );
 
   const makeSuggestions = useMemo(
     () => [...new Set([...yardMakes, ...COMMON_MAKES])].sort((a, b) => a.localeCompare(b)),
@@ -69,6 +87,60 @@ export function VehicleForm({
 
   const modelSuggestions = COMMON_MODELS[make] ?? [];
   const fieldError = (key: string) => state.fieldErrors?.[key];
+
+  /**
+   * Applies what the VIN lookup found, and reports how many fields it
+   * actually filled. Nothing already entered is overwritten -- a decode
+   * should never quietly replace something the partner read off the car
+   * itself.
+   */
+  function applyDecoded(d: DecodedVehicle): number {
+    let filled = 0;
+
+    const setUncontrolled = (name: string, value?: string) => {
+      if (!value) return;
+      const el = document.querySelector<HTMLInputElement>(`input[name="${name}"]`);
+      if (!el || el.value.trim() !== "") return;
+
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      setter?.call(el, value);
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      filled += 1;
+    };
+
+    if (d.year && year !== d.year) {
+      setYear(d.year);
+      filled += 1;
+    }
+    if (d.make && make.trim() === "") {
+      setMake(d.make);
+      filled += 1;
+    }
+    if (d.bodyType && bodyType === "") {
+      setBodyType(d.bodyType);
+      filled += 1;
+    }
+    if (d.transmission && transmission === "") {
+      setTransmission(d.transmission);
+      filled += 1;
+    }
+    if (d.drivetrain && drivetrain === "") {
+      setDrivetrain(d.drivetrain);
+      filled += 1;
+    }
+    if (d.fuelType && fuel === "gas" && d.fuelType !== "gas") {
+      setFuel(d.fuelType);
+      filled += 1;
+    }
+
+    setUncontrolled("model", d.model);
+    setUncontrolled("engine", d.engine);
+
+    return filled;
+  }
 
   return (
     <form action={formAction} className="space-y-5 px-3 py-4">
@@ -100,22 +172,18 @@ export function VehicleForm({
                 invalid={!!fieldError("vin")}
               />
             </Field>
-            <VinDecodeButton />
+            <VinDecodeButton onDecode={applyDecoded} />
           </div>
 
           <div className="grid grid-cols-3 gap-2.5">
             <Field label="Year" htmlFor="year" required error={fieldError("year")}>
-              <NativeSelect
+              <SimpleSelect
                 id="year"
                 name="year"
-                defaultValue={vehicle?.year ?? new Date().getFullYear() - 8}
-              >
-                {yearOptions().map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </NativeSelect>
+                value={year}
+                onValueChange={setYear}
+                options={yearOptions().map((y) => ({ value: String(y), label: String(y) }))}
+              />
             </Field>
 
             <Field
@@ -176,14 +244,14 @@ export function VehicleForm({
 
           <div className="grid grid-cols-2 gap-2.5">
             <Field label="Body" htmlFor="body_type">
-              <NativeSelect id="body_type" name="body_type" defaultValue={vehicle?.body_type ?? ""}>
-                <option value="">—</option>
-                {BODY_TYPES.map((b) => (
-                  <option key={b.value} value={b.value}>
-                    {b.label}
-                  </option>
-                ))}
-              </NativeSelect>
+              <SimpleSelect
+                id="body_type"
+                name="body_type"
+                value={bodyType}
+                onValueChange={setBodyType}
+                placeholder="—"
+                options={BODY_TYPES.map((b) => ({ value: b.value, label: b.label }))}
+              />
             </Field>
 
             <Field label="Colour" htmlFor="exterior_colour">
@@ -220,39 +288,35 @@ export function VehicleForm({
 
           <div className="grid grid-cols-3 gap-2.5">
             <Field label="Trans." htmlFor="transmission">
-              <NativeSelect
+              <SimpleSelect
                 id="transmission"
                 name="transmission"
-                defaultValue={vehicle?.transmission ?? ""}
-              >
-                <option value="">—</option>
-                {TRANSMISSIONS.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </NativeSelect>
+                value={transmission}
+                onValueChange={setTransmission}
+                placeholder="—"
+                options={TRANSMISSIONS.map((t) => ({ value: t.value, label: t.label }))}
+              />
             </Field>
 
             <Field label="Drive" htmlFor="drivetrain">
-              <NativeSelect id="drivetrain" name="drivetrain" defaultValue={vehicle?.drivetrain ?? ""}>
-                <option value="">—</option>
-                {DRIVETRAINS.map((d) => (
-                  <option key={d.value} value={d.value}>
-                    {d.label}
-                  </option>
-                ))}
-              </NativeSelect>
+              <SimpleSelect
+                id="drivetrain"
+                name="drivetrain"
+                value={drivetrain}
+                onValueChange={setDrivetrain}
+                placeholder="—"
+                options={DRIVETRAINS.map((d) => ({ value: d.value, label: d.label }))}
+              />
             </Field>
 
             <Field label="Fuel" htmlFor="fuel_type">
-              <NativeSelect id="fuel_type" name="fuel_type" defaultValue={vehicle?.fuel_type ?? "gas"}>
-                {FUEL_TYPES.map((f) => (
-                  <option key={f.value} value={f.value}>
-                    {f.label}
-                  </option>
-                ))}
-              </NativeSelect>
+              <SimpleSelect
+                id="fuel_type"
+                name="fuel_type"
+                value={fuel}
+                onValueChange={setFuel}
+                options={FUEL_TYPES.map((f) => ({ value: f.value, label: f.label }))}
+              />
             </Field>
           </div>
 
@@ -285,24 +349,15 @@ export function VehicleForm({
             </Field>
 
             <Field label="Source" htmlFor="source">
-              <NativeSelect id="source" name="source" defaultValue={vehicle?.source ?? "icbc_auction"}>
-                {VEHICLE_SOURCES.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </NativeSelect>
+              <SimpleSelect
+                id="source"
+                name="source"
+                value={source}
+                onValueChange={setSource}
+                options={VEHICLE_SOURCES.map((s) => ({ value: s.value, label: s.label }))}
+              />
             </Field>
           </div>
-
-          <Field label="Lot number" htmlFor="lot_number">
-            <Input
-              id="lot_number"
-              name="lot_number"
-              defaultValue={vehicle?.lot_number ?? ""}
-              placeholder="ICBC-44182"
-            />
-          </Field>
 
           <div className="grid grid-cols-2 gap-2.5">
             <Field label="Purchase price" htmlFor="purchase_price">
@@ -352,38 +407,35 @@ export function VehicleForm({
               {formatMoney(landed)}
             </span>
           </div>
-
-          <Field
-            label="Scrap income"
-            htmlFor="scrap_income"
-            hint="What the shell brought in by weight. Add it when the hulk goes."
-          >
-            <MoneyInput
-              id="scrap_income"
-              name="scrap_income"
-              value={scrap}
-              onValueChange={setScrap}
-              placeholder="0.00"
-            />
-          </Field>
         </Card>
       </section>
 
-      {/* -------------------------------------------------- Status */}
+      {/* --------------------------------------------------- Notes */}
       <section className="space-y-2">
-        <SectionHeading>Status</SectionHeading>
+        <SectionHeading>Notes</SectionHeading>
         <Card className="space-y-4 p-4">
-          <Field label="Where it's at" htmlFor="status">
-            <NativeSelect id="status" name="status" defaultValue={vehicle?.status ?? "parting_out"}>
-              {VEHICLE_STATUSES.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {s.label} — {s.hint}
-                </option>
-              ))}
-            </NativeSelect>
-          </Field>
+          {/*
+            Status is not asked when a car is added -- it is in the yard to
+            be parted out, and saying so is noise. It appears here only when
+            editing, which is when a car actually needs retiring.
+          */}
+          {!isNew && (
+            <Field label="Where it's at" htmlFor="status">
+              <SimpleSelect
+                id="status"
+                name="status"
+                value={status}
+                onValueChange={setStatus}
+                options={VEHICLE_STATUSES.map((s) => ({
+                  value: s.value,
+                  label: s.label,
+                  hint: s.hint,
+                }))}
+              />
+            </Field>
+          )}
 
-          <Field label="Notes" htmlFor="notes">
+          <Field label="Anything worth knowing" htmlFor="notes">
             <Textarea
               id="notes"
               name="notes"
@@ -394,7 +446,7 @@ export function VehicleForm({
         </Card>
       </section>
 
-      <SubmitBar label={submitLabel} isNew={!vehicle} />
+      <SubmitBar label={submitLabel} isNew={isNew} />
     </form>
   );
 }

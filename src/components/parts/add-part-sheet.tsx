@@ -13,7 +13,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Field, Input, MoneyInput, NativeSelect } from "@/components/ui/field";
+import { Field, Input, MoneyInput } from "@/components/ui/field";
+import { SimpleSelect } from "@/components/ui/select";
 import { PartIcon, categoryColour } from "@/lib/icons/part-icons";
 import { toast } from "@/components/ui/toaster";
 import { addPart } from "@/lib/actions/parts";
@@ -293,17 +294,12 @@ export function AddPartSheet({
                 </Field>
 
                 <Field label="Files under" htmlFor="custom_category">
-                  <NativeSelect
+                  <SimpleSelect
                     id="custom_category"
                     value={customCategory}
-                    onChange={(e) => setCustomCategory(e.target.value)}
-                  >
-                    {categories.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </NativeSelect>
+                    onValueChange={setCustomCategory}
+                    options={categories.map((c) => ({ value: c, label: c }))}
+                  />
                 </Field>
               </>
             )}
@@ -312,32 +308,25 @@ export function AddPartSheet({
             {ready && (
               <>
                 <Field label="Which side" htmlFor="add_side">
-                  <NativeSelect
+                  <SimpleSelect
                     id="add_side"
                     value={side}
-                    onChange={(e) => setSide(e.target.value as PartSide)}
-                  >
-                    {ALL_SIDES.map((s) => (
-                      <option key={s} value={s}>
-                        {s === "none" ? "Not sided" : SIDE_LABELS[s]}
-                      </option>
-                    ))}
-                  </NativeSelect>
+                    onValueChange={setSide}
+                    options={ALL_SIDES.map((s) => ({
+                      value: s,
+                      label: s === "none" ? "Not sided" : SIDE_LABELS[s],
+                    }))}
+                  />
                 </Field>
 
                 <div className="grid grid-cols-2 gap-2.5">
                   <Field label="Condition" htmlFor="add_condition">
-                    <NativeSelect
+                    <SimpleSelect
                       id="add_condition"
                       value={condition}
-                      onChange={(e) => setCondition(e.target.value as PartCondition)}
-                    >
-                      {CONDITIONS.map((c) => (
-                        <option key={c.value} value={c.value}>
-                          {c.label}
-                        </option>
-                      ))}
-                    </NativeSelect>
+                      onValueChange={setCondition}
+                      options={CONDITIONS.map((c) => ({ value: c.value, label: c.label }))}
+                    />
                   </Field>
 
                   <Field label="Asking price" htmlFor="add_price">

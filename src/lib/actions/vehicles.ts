@@ -51,12 +51,12 @@ function readVehicleForm(fd: FormData) {
     mileage_km,
     purchase_date: str(fd, "purchase_date"),
     source: str(fd, "source") ?? "icbc_auction",
-    lot_number: str(fd, "lot_number"),
     purchase_price_cents: cents(fd, "purchase_price"),
     auction_fee_cents: cents(fd, "auction_fee"),
     transport_cost_cents: cents(fd, "transport_cost"),
     other_acquisition_cost_cents: cents(fd, "other_acquisition_cost"),
-    scrap_income_cents: cents(fd, "scrap_income"),
+    // Not asked when adding a car -- it is in the yard to be parted out.
+    // The edit form supplies it when a car needs retiring.
     status: str(fd, "status") ?? "parting_out",
     notes: str(fd, "notes"),
   };

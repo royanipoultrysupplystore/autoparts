@@ -22,9 +22,10 @@ const Overlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "fixed inset-0 z-50 bg-[rgb(20_18_16/0.5)] backdrop-blur-[2px]",
+      "fixed inset-0 z-50 bg-[rgb(20_18_16/0.45)] backdrop-blur-[3px]",
       "data-[state=open]:animate-in data-[state=closed]:animate-out",
       "data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0",
+      "duration-200 ease-out-soft",
       className,
     )}
     {...props}
@@ -45,10 +46,11 @@ export const SheetContent = React.forwardRef<
       ref={ref}
       className={cn(
         "fixed inset-x-0 bottom-0 z-50 flex flex-col",
-        "rounded-t-2xl border-t border-line bg-surface shadow-[var(--shadow-sheet)]",
+        "glass rounded-t-[20px] border-t shadow-[var(--shadow-sheet)]",
         "mx-auto w-full max-w-[640px]",
         tall ? "top-8 sm:top-12" : "max-h-[92dvh]",
-        "duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out",
+        "duration-[260ms] ease-out-soft",
+        "data-[state=open]:animate-in data-[state=closed]:animate-out",
         "data-[state=open]:slide-in-from-bottom data-[state=closed]:slide-out-to-bottom",
         className,
       )}
@@ -56,7 +58,7 @@ export const SheetContent = React.forwardRef<
     >
       {/* Grab handle: tells the user this thing drags down. */}
       <div className="flex shrink-0 justify-center pt-2.5 pb-1">
-        <div className="h-1 w-10 rounded-full bg-line-strong" />
+        <div className="h-1 w-10 rounded-full bg-line-strong/70" />
       </div>
       {children}
     </DialogPrimitive.Content>
@@ -126,7 +128,7 @@ export function SheetFooter({
   return (
     <div
       className={cn(
-        "pb-safe shrink-0 border-t border-line bg-surface px-4 pb-3 pt-3",
+        "pb-safe glass shrink-0 border-t px-4 pb-3 pt-3",
         className,
       )}
     >

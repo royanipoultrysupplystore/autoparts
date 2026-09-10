@@ -22,7 +22,7 @@ export function AppHeader({
   return (
     <header
       className={cn(
-        "pt-safe sticky top-0 z-30 border-b border-line bg-bg/90 backdrop-blur-md",
+        "pt-safe glass sticky top-0 z-30 border-b",
         className,
       )}
     >

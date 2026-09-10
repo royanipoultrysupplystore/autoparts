@@ -33,7 +33,10 @@ export async function createExpense(
     return { ok: false, fieldErrors: { amount: "Enter an amount over zero." } };
   }
 
-  const vehicleId = String(formData.get("vehicle_id") ?? "").trim();
+  // The select cannot carry an empty string, so "no vehicle" arrives as a
+  // sentinel. Translate it back before anything reads it as an id.
+  const rawVehicleId = String(formData.get("vehicle_id") ?? "").trim();
+  const vehicleId = rawVehicleId === "__none" ? "" : rawVehicleId;
   // Picking a vehicle is what makes an expense vehicle-scoped. The
   // database enforces the pairing too, with a check constraint.
   const scope: ExpenseScope = vehicleId ? "vehicle" : "business";

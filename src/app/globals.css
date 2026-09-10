@@ -53,6 +53,26 @@
   --shadow-sheet:  0 -8px 40px -12px rgb(26 25 23 / 0.25);
   --shadow-card:   0 1px 2px 0 rgb(26 25 23 / 0.05);
   --shadow-raised: 0 4px 16px -4px rgb(26 25 23 / 0.12);
+
+  /* Motion.
+
+     `--ms-ease-out` starts fast and settles, which is what makes a panel
+     feel like it was already on its way rather than being animated at
+     you. `--ms-ease-spring` overshoots very slightly -- enough to feel
+     physical on a press, not enough to look bouncy.
+
+     Durations stay short. Anything past ~220ms on a phone reads as lag,
+     however pretty the curve. */
+  --ms-ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --ms-ease-spring: cubic-bezier(0.34, 1.35, 0.64, 1);
+  --dur-fast:    120ms;
+  --dur-base:    180ms;
+  --dur-slow:    260ms;
+
+  /* Glass: the translucency and blur used by raised surfaces. */
+  --glass-bg:     rgb(255 255 255 / 0.72);
+  --glass-border: rgb(255 255 255 / 0.6);
+  --glass-blur:   20px;
 }
 
 .dark {
@@ -89,6 +109,9 @@
   --success:       #5fd07f;
 
   --ring:          #4a97d1;
+
+  --glass-bg:     rgb(30 29 35 / 0.72);
+  --glass-border: rgb(255 255 255 / 0.09);
 }
 
 @theme inline {
@@ -131,6 +154,7 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
 }
 
 @layer base {
@@ -149,6 +173,31 @@
     font-family: var(--font-sans);
     /* Never let the yard rubber-band the page while a sheet is open. */
     overscroll-behavior-y: none;
+  }
+
+  /* A tap should register on the first touch. Browsers delay the click
+     on anything that might be double-tapped to zoom, and that delay is
+     exactly what reads as "it did not open the first time". */
+  button,
+  [role="button"],
+  a,
+  label,
+  summary,
+  input,
+  select,
+  textarea {
+    touch-action: manipulation;
+  }
+
+  /* The press itself. Scale rather than colour, because a colour change
+     is invisible under a work glove in daylight and a size change is
+     not. */
+  @media (hover: none) {
+    button:active,
+    [role="button"]:active,
+    a:active {
+      transition-duration: var(--dur-fast);
+    }
   }
 
   /* Prices, mileage, counts: figures must line up in a column. */
@@ -203,6 +252,37 @@
     100% {
       background-position: 0 50%;
     }
+  }
+
+  /* Frosted surface for anything that floats over content: sheets, the
+     tab bar, sticky headers. The saturation bump keeps colour showing
+     through the blur instead of going grey. */
+  .glass {
+    background: var(--glass-bg);
+    border-color: var(--glass-border);
+    /* Composed from Tailwind's own utilities rather than written by hand:
+       a hand-written `backdrop-filter` next to its `-webkit-` twin gets
+       deduplicated down to one of them, and it is not always the one
+       every browser understands. */
+    @apply backdrop-blur-xl backdrop-saturate-150;
+  }
+
+  /* Falls back to an opaque surface where backdrop-filter is missing,
+     so text never lands on a half-transparent unreadable panel. */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass {
+      background: var(--surface);
+    }
+  }
+
+  /* Named with a prefix because Tailwind v4 ships its own --ease-out,
+     and an unprefixed name silently loses to it. */
+  .ease-out-soft {
+    transition-timing-function: var(--ms-ease-out);
+  }
+
+  .ease-spring {
+    transition-timing-function: var(--ms-ease-spring);
   }
 
   .no-scrollbar::-webkit-scrollbar {
