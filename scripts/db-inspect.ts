@@ -49,9 +49,27 @@ const QUERIES: { title: string; sql: string }[] = [
           order by c.relname`,
   },
   {
+    // pg_class, not information_schema.views: the latter filters on the
+    // caller's privileges and quietly omits views it cannot see.
     title: "Views in public",
-    sql: `select table_name as name from information_schema.views
-          where table_schema = 'public' order by table_name`,
+    sql: `select c.relname as name,
+                 coalesce((select string_agg(distinct g.grantee, ', ')
+                             from information_schema.role_table_grants g
+                            where g.table_schema = 'public'
+                              and g.table_name = c.relname
+                              and g.privilege_type = 'SELECT'
+                              and g.grantee in ('anon','authenticated')),
+                          '(definer functions only)') as readable_by
+            from pg_class c join pg_namespace n on n.oid = c.relnamespace
+           where n.nspname = 'public' and c.relkind = 'v'
+           order by c.relname`,
+  },
+  {
+    title: "Functions in public",
+    sql: `select count(*)::int as total,
+                 count(*) filter (where p.prosecdef)::int as security_definer
+            from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public'`,
   },
   {
     title: "Auth users",

@@ -44,6 +44,14 @@ async function main() {
   const db = await connect();
   let userId: string | null = null;
 
+  // Sweep up after any earlier run that was killed before its cleanup
+  // could run. Test accounts are recognisable and belong to nobody.
+  const { rowCount: swept } = await db.query(
+    `delete from auth.users where email like 'smoke-%@local.test'`,
+  );
+  if (swept) console.log(`  (removed ${swept} orphaned test account${swept === 1 ? "" : "s"})
+`);
+
   try {
     // ---- Anonymous: what the internet can reach --------------------
     const anon = async (path: string) =>
