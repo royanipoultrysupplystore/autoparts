@@ -15,7 +15,9 @@ import { formatMoney, parseMoneyToCents } from "@/lib/money";
 import { SIDE_LABELS } from "@/lib/format";
 import { bulkSetPrices, publishParts } from "@/lib/actions/parts";
 import { PartSheet, type SheetPart } from "@/components/parts/part-sheet";
+import { AddPartSheet } from "@/components/parts/add-part-sheet";
 import { useFinanceAccess } from "@/components/profile-provider";
+import type { CatalogOption } from "@/lib/data/catalog";
 import type { Part, PartStatus } from "@/types/db";
 
 type VehicleHead = {
@@ -31,10 +33,14 @@ export function VehicleParts({
   vehicle,
   parts,
   storefrontEnabled,
+  catalog,
+  categories,
 }: {
   vehicle: VehicleHead;
   parts: Part[];
   storefrontEnabled: boolean;
+  catalog: CatalogOption[];
+  categories: string[];
 }) {
   const router = useRouter();
   const finance = useFinanceAccess();
@@ -150,11 +156,20 @@ export function VehicleParts({
 
   if (parts.length === 0) {
     return (
-      <EmptyState
-        title="No parts on this vehicle yet"
-        body="The parts list is generated from the catalog when a vehicle is added. If it came up empty, generate it now."
-        action={{ label: "Build the parts list", href: `/vehicles/${vehicle.id}/trim` }}
-      />
+      <div className="space-y-3">
+        <EmptyState
+          title="No parts on this vehicle yet"
+          body="The parts list is generated from the catalog when a vehicle is added. If it came up empty, generate it now."
+          action={{ label: "Build the parts list", href: `/vehicles/${vehicle.id}/trim` }}
+        />
+        {finance && (
+          <AddPartSheet
+            vehicleId={vehicle.id}
+            catalog={catalog}
+            categories={categories}
+          />
+        )}
+      </div>
     );
   }
 
@@ -298,6 +313,18 @@ export function VehicleParts({
               </Button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Adding back something the trim removed, a second one of a part,
+          or something the catalog never had. */}
+      {finance && !selecting && (
+        <div className="mt-4">
+          <AddPartSheet
+            vehicleId={vehicle.id}
+            catalog={catalog}
+            categories={categories}
+          />
         </div>
       )}
 

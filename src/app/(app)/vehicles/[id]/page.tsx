@@ -8,6 +8,7 @@ import {
   getVehiclePnl,
 } from "@/lib/data/vehicles";
 import { getCurrentProfile, hasFinanceAccess } from "@/lib/supabase/server";
+import { categoriesFrom, getActiveCatalog } from "@/lib/data/catalog";
 import { AppHeader } from "@/components/nav/app-header";
 import { Card, DetailRow, SectionHeading, Stat } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
@@ -41,10 +42,11 @@ export default async function VehicleDetailPage({
   if (!vehicle) notFound();
 
   const finance = hasFinanceAccess(profile);
-  const [parts, costs, pnl] = await Promise.all([
+  const [parts, costs, pnl, catalog] = await Promise.all([
     getVehicleParts(id),
     finance ? getVehicleFinance(id) : Promise.resolve(null),
     finance ? getVehiclePnl(id) : Promise.resolve(null),
+    finance ? getActiveCatalog() : Promise.resolve([]),
   ]);
 
   const storefrontEnabled = process.env.NEXT_PUBLIC_ENABLE_STOREFRONT === "true";
@@ -195,6 +197,8 @@ export default async function VehicleDetailPage({
             }}
             parts={parts}
             storefrontEnabled={storefrontEnabled}
+            catalog={catalog}
+            categories={categoriesFrom(catalog)}
           />
         </section>
 
