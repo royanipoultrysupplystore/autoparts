@@ -78,6 +78,14 @@ function LoginForm() {
   );
 }
 
+/**
+ * Rendered per request rather than prerendered, so the runtime config
+ * script in the root layout carries current values. This is the one page
+ * an unauthenticated visitor reaches, so it has to be right before
+ * anything else works.
+ */
+export const dynamic = "force-dynamic";
+
 export default function LoginPage() {
   return (
     <main className="flex min-h-dvh flex-col justify-center px-5 py-10">

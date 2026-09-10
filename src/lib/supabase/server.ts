@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { cache } from "react";
-import { readSupabaseEnv } from "@/lib/env";
+import { readServerEnv } from "@/lib/env";
 import type { Profile } from "@/types/db";
 
 /**
@@ -10,7 +10,7 @@ import type { Profile } from "@/types/db";
  */
 export async function createSupabaseServer() {
   const cookieStore = await cookies();
-  const env = readSupabaseEnv();
+  const env = readServerEnv();
 
   if (!env.ok) {
     throw new Error(

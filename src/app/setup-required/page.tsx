@@ -1,6 +1,6 @@
 import { TriangleAlert } from "lucide-react";
 import { Logo } from "@/components/brand";
-import { describeEnvProblem, readSupabaseEnv } from "@/lib/env";
+import { describeEnvProblem, readServerEnv } from "@/lib/env";
 
 /**
  * Shown instead of a bare 500 when the Supabase environment variables did
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Setup required" };
 
 export default function SetupRequiredPage() {
-  const env = readSupabaseEnv();
+  const env = readServerEnv();
 
   const problems = env.ok
     ? []
@@ -60,13 +60,15 @@ export default function SetupRequiredPage() {
 
           <div className="mt-6 rounded-xl border border-accent-border bg-accent-soft p-4">
             <h2 className="text-[14.5px] font-semibold text-accent">
-              Adding them is only half of it
+              You can also drop the NEXT_PUBLIC_ prefix
             </h2>
             <p className="mt-1.5 text-[13.5px] leading-relaxed text-accent">
-              Values beginning <code className="font-mono">NEXT_PUBLIC_</code> are
-              compiled into the build, not read when the page loads. If you added
-              them after this deployment was built, they are not in it yet —
-              you have to <strong>redeploy</strong> before they take effect.
+              These are read on the server when the page is requested, so{" "}
+              <code className="font-mono">SUPABASE_URL</code> and{" "}
+              <code className="font-mono">SUPABASE_ANON_KEY</code> work just as
+              well — and unlike <code className="font-mono">NEXT_PUBLIC_</code>
+              {" "}names, they are picked up without rebuilding and work even when
+              the host marks them sensitive.
             </p>
           </div>
 
@@ -82,8 +84,9 @@ export default function SetupRequiredPage() {
               Preview and Development.
             </li>
             <li>
-              <span className="font-medium text-ink">3.</span> Redeploy, with any
-              build cache turned off.
+              <span className="font-medium text-ink">3.</span> These are read fresh
+              on every request, so a corrected value takes effect on the next page
+              load — no rebuild needed.
             </li>
           </ol>
 

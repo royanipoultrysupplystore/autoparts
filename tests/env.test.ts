@@ -19,7 +19,7 @@ const SRC = join(process.cwd(), "src");
 test("the proxy checks the environment before building a client", async () => {
   const proxy = await readFile(join(SRC, "proxy.ts"), "utf8");
 
-  const guardAt = proxy.indexOf("readSupabaseEnv()");
+  const guardAt = proxy.indexOf("readServerEnv()");
   const clientAt = proxy.indexOf("createServerClient(");
 
   assert.ok(guardAt !== -1, "proxy.ts does not check the environment at all");
@@ -56,19 +56,50 @@ test("the setup screen is reachable without authentication", async () => {
 });
 
 test("the Supabase clients explain themselves when unconfigured", async () => {
-  for (const file of ["client.ts", "server.ts"]) {
+  for (const [file, reader] of [
+    ["client.ts", "readClientEnv"],
+    ["server.ts", "readServerEnv"],
+  ] as const) {
     const source = await readFile(join(SRC, "lib", "supabase", file), "utf8");
 
+    assert.ok(source.includes(reader), `${file} does not use ${reader}`);
     assert.ok(
-      source.includes("readSupabaseEnv"),
-      `${file} does not check the environment`,
-    );
-    assert.ok(
-      source.includes("redeploy"),
-      `${file} does not mention redeploying -- the part people miss, ` +
-        "because NEXT_PUBLIC_* values are baked in at build time",
+      /Supabase is not configured/.test(source),
+      `${file} does not say what is wrong when unconfigured`,
     );
   }
+});
+
+test("config reaches the browser at request time, not build time", async () => {
+  const component = await readFile(
+    join(SRC, "components", "runtime-config.tsx"),
+    "utf8",
+  );
+
+  // Without a request API this component is prerendered once and the
+  // environment is frozen into the HTML at build time -- the exact
+  // failure this indirection exists to avoid.
+  assert.ok(
+    /await headers\(\)|await connection\(\)|await cookies\(\)/.test(component),
+    "runtime-config.tsx touches no request API, so Next.js will prerender it " +
+      "and bake build-time values into every page",
+  );
+  assert.ok(component.includes("publicConfigScript"));
+
+  const layout = await readFile(join(SRC, "app", "layout.tsx"), "utf8");
+  assert.ok(
+    layout.includes("RuntimeConfigScript"),
+    "the root layout does not inject the runtime config",
+  );
+});
+
+test("the server accepts unprefixed variable names too", async () => {
+  const env = await readFile(join(SRC, "lib", "env.ts"), "utf8");
+
+  // NEXT_PUBLIC_* is substituted at build time even in server code, so an
+  // unprefixed name is the only one that can be read at runtime.
+  assert.ok(env.includes("process.env.SUPABASE_URL"));
+  assert.ok(env.includes("process.env.SUPABASE_ANON_KEY"));
 });
 
 test("env.ts reads each variable as a literal lookup", async () => {

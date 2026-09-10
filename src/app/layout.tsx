@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "@/components/ui/toaster";
+import { RuntimeConfigScript } from "@/components/runtime-config";
 import "./globals.css";
 
 const inter = Inter({
@@ -64,6 +65,12 @@ export default function RootLayout({
   return (
     <html lang="en-CA" className={inter.variable} suppressHydrationWarning>
       <head>
+        {/*
+          Resolved per request, so the deployed app picks up a corrected
+          environment variable without needing a rebuild. Must come before
+          any client bundle that reads it.
+        */}
+        <RuntimeConfigScript />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="min-h-dvh antialiased">

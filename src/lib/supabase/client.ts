@@ -1,7 +1,7 @@
 "use client";
 
 import { createBrowserClient } from "@supabase/ssr";
-import { readSupabaseEnv } from "@/lib/env";
+import { readClientEnv } from "@/lib/env";
 
 /**
  * Browser client. Carries the signed-in user's JWT, so every query it
@@ -9,7 +9,7 @@ import { readSupabaseEnv } from "@/lib/env";
  * vehicle costs away from staff.
  */
 export function createClient() {
-  const env = readSupabaseEnv();
+  const env = readClientEnv();
 
   if (!env.ok) {
     // Reaching here means the build did not receive its NEXT_PUBLIC_*

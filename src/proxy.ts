@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { readSupabaseEnv } from "@/lib/env";
+import { readServerEnv } from "@/lib/env";
 
 /**
  * Refreshes the Supabase session on every request and keeps signed-out
@@ -40,7 +40,7 @@ export async function proxy(request: NextRequest) {
    * the problem, rather than crashing the whole site over a config
    * value.
    */
-  const env = readSupabaseEnv();
+  const env = readServerEnv();
 
   if (!env.ok) {
     if (request.nextUrl.pathname === "/setup-required") return response;
