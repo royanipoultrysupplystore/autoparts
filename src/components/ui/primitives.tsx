@@ -74,8 +74,16 @@ export function Stat({
 }
 
 /** Skeletons, never spinners: the shape of the answer arrives before the answer. */
-export function Skeleton({ className }: { className?: string }) {
-  return <div className={cn("skeleton rounded-md", className)} aria-hidden="true" />;
+export function Skeleton({
+  className,
+  style,
+}: {
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <div className={cn("skeleton rounded-md", className)} style={style} aria-hidden="true" />
+  );
 }
 
 export function SkeletonRows({ count = 6 }: { count?: number }) {

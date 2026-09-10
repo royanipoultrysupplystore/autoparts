@@ -245,6 +245,18 @@
     animation: shimmer 1.4s ease infinite;
   }
 
+  /* A slower spin than the default: at 1s it reads as an error state.
+     This is meant to say "on its way", not "something is wrong". */
+  .animate-spin-slow {
+    animation: spin 1.6s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
   @keyframes shimmer {
     0% {
       background-position: 100% 50%;

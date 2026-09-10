@@ -303,3 +303,31 @@ shown in full and buyers are asked to get in touch.
   generates 239 parts per vehicle, not the ~150 the original spec estimated —
   so whole-category toggles and a "high value only" button are the primary
   interaction, not a secondary one.
+
+---
+
+## Why the app is pinned to `pdx1`
+
+Every screen reads live data, so each page render makes several
+sequential round trips to Supabase. Where those two run matters more than
+anything else in the request.
+
+Vercel places functions in `iad1` (Virginia) by default. This project's
+database answers a TCP connect from Vancouver in about **16 ms**, which
+puts it in US West. Left on the default, every query would cross the
+continent and back — roughly 130 ms each, several times per page.
+
+`vercel.json` therefore pins functions to `pdx1` (Portland), alongside
+the database.
+
+If the Supabase project is ever moved, change that one line to match.
+Vercel's region codes are in the deployment's `X-Vercel-Id` header: the
+second segment is where the function actually ran.
+
+```bash
+curl -sI https://your-app.vercel.app/login | grep -i x-vercel-id
+# x-vercel-id: pdx1::pdx1::...
+#              ^edge  ^function -- these two should match your database
+```
+
+Hobby plans allow one region, which is all this needs.
