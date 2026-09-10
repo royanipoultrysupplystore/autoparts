@@ -3,6 +3,8 @@ import { Phone, ShieldCheck, Users } from "lucide-react";
 import { createSupabaseServer, getCurrentProfile, hasFinanceAccess } from "@/lib/supabase/server";
 import { AppHeader } from "@/components/nav/app-header";
 import { Card, EmptyState } from "@/components/ui/primitives";
+import { AddMemberSheet } from "@/components/team/add-member-sheet";
+import { MemberMenu } from "@/components/team/member-menu";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Profile } from "@/types/db";
@@ -24,30 +26,36 @@ const ROLE: Record<Profile["role"], { label: string; note: string; tone: string 
   },
   staff: {
     label: "Staff",
-    note: "Search, sell, and edit parts — no costs or reports",
+    note: "Search, sell and edit parts — no costs or reports",
     tone: "bg-surface-2 text-ink-muted",
   },
 };
+
+type MemberRow = Profile & { email: string | null };
 
 export default async function TeamPage() {
   const me = await getCurrentProfile();
   if (!hasFinanceAccess(me)) redirect("/");
 
+  const isOwner = me?.role === "owner";
   const supabase = await createSupabaseServer();
+
   const { data } = await supabase
     .from("profiles")
     .select("*")
     .order("role")
     .order("full_name");
 
-  const members = (data ?? []) as Profile[];
+  const members = (data ?? []) as MemberRow[];
+  const active = members.filter((m) => m.is_active).length;
 
   return (
     <>
       <AppHeader
         title="Team"
-        subtitle={`${members.filter((m) => m.is_active).length} active`}
+        subtitle={`${active} active · ${members.length} total`}
         back={{ href: "/more" }}
+        action={isOwner ? <AddMemberSheet /> : undefined}
       />
 
       <div className="space-y-4 px-3 py-4">
@@ -55,27 +63,31 @@ export default async function TeamPage() {
           <EmptyState
             icon={<Users className="size-7" />}
             title="No accounts yet"
-            body="Run npm run seed:users with the four partners filled into .env.local."
+            body={
+              isOwner
+                ? "Add your partners so they can sign in on their own phones."
+                : "Ask the owner to add people to the yard."
+            }
           />
         ) : (
           <Card className="divide-y divide-line overflow-hidden">
             {members.map((m) => {
               const role = ROLE[m.role];
+              const isSelf = m.id === me?.id;
+
               return (
-                <div
-                  key={m.id}
-                  className={cn("px-3.5 py-3", !m.is_active && "opacity-50")}
-                >
-                  <div className="flex items-start justify-between gap-3">
+                <div key={m.id} className={cn("px-3.5 py-3", !m.is_active && "opacity-55")}>
+                  <div className="flex items-start gap-3">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[15px] font-medium text-ink">
                         {m.full_name}
-                        {m.id === me?.id && (
+                        {isSelf && (
                           <span className="ml-1.5 text-[12.5px] font-normal text-ink-subtle">
                             (you)
                           </span>
                         )}
                       </p>
+
                       {m.phone && (
                         <a
                           href={`tel:${m.phone}`}
@@ -85,6 +97,7 @@ export default async function TeamPage() {
                           {m.phone}
                         </a>
                       )}
+
                       <p className="mt-1 text-[12px] leading-relaxed text-ink-subtle">
                         {role.note}
                       </p>
@@ -101,11 +114,21 @@ export default async function TeamPage() {
                     >
                       {role.label}
                     </span>
+
+                    {isOwner && (
+                      <MemberMenu
+                        userId={m.id}
+                        name={m.full_name}
+                        role={m.role}
+                        isActive={m.is_active}
+                        isSelf={isSelf}
+                      />
+                    )}
                   </div>
 
                   {!m.is_active && (
                     <p className="mt-2 rounded-lg bg-surface-2 px-2.5 py-1.5 text-[12px] text-ink-muted">
-                      Switched off — cannot sign in.
+                      Switched off — cannot sign in. Their sales stay on the reports.
                     </p>
                   )}
                 </div>
@@ -122,9 +145,15 @@ export default async function TeamPage() {
           <p className="mt-2 text-[13px] leading-relaxed text-ink-muted">
             A staff account cannot reach vehicle costs or profit at all — the
             database revokes those columns outright and refuses every reporting
-            query, so it is not a matter of hiding buttons. Adding accounts and
-            changing roles is done by the owner in the Supabase dashboard.
+            query, so it is not a matter of hiding buttons.
           </p>
+          {isOwner && (
+            <p className="mt-2.5 text-[13px] leading-relaxed text-ink-muted">
+              Nobody is ever deleted here. Someone who leaves gets switched off:
+              they cannot sign in, and every sale they recorded stays under their
+              name in the reports.
+            </p>
+          )}
         </Card>
       </div>
     </>

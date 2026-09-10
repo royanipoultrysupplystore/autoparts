@@ -17,6 +17,9 @@ import { join } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { unaccent } from "@electric-sql/pglite/contrib/unaccent";
+// Supabase ships pgcrypto; the team-management functions hash passwords
+// with it, so the harness needs it too.
+import { pgcrypto } from "@electric-sql/pglite/contrib/pgcrypto";
 
 const MIGRATIONS_DIR = join(process.cwd(), "supabase", "migrations");
 
@@ -32,16 +35,42 @@ alter default privileges in schema public
 alter default privileges in schema public
   grant all on functions to anon, authenticated, service_role;
 
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
+
 create schema if not exists auth;
 create table auth.users (
-  id                 uuid primary key default gen_random_uuid(),
-  email              text,
-  raw_user_meta_data jsonb default '{}'::jsonb,
-  created_at         timestamptz not null default now()
+  instance_id            uuid,
+  id                     uuid primary key default gen_random_uuid(),
+  aud                    text,
+  role                   text,
+  email                  text unique,
+  encrypted_password     text,
+  email_confirmed_at     timestamptz,
+  raw_app_meta_data      jsonb default '{}'::jsonb,
+  raw_user_meta_data     jsonb default '{}'::jsonb,
+  confirmation_token     text,
+  recovery_token         text,
+  email_change_token_new text,
+  email_change           text,
+  created_at             timestamptz not null default now(),
+  updated_at             timestamptz not null default now()
 );
 
 -- In Supabase this reads the request's JWT claims. Here it reads a GUC,
 -- which lets the checks below impersonate a user.
+create table auth.identities (
+  provider_id     text not null,
+  user_id         uuid not null references auth.users(id) on delete cascade,
+  identity_data   jsonb not null,
+  provider        text not null,
+  last_sign_in_at timestamptz,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+  id              uuid primary key default gen_random_uuid(),
+  unique (provider, provider_id)
+);
+
 create or replace function auth.uid() returns uuid
 language sql stable as $shim$
   select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
@@ -495,7 +524,7 @@ async function behaviourChecks(db: PGlite): Promise<string[]> {
 async function main() {
   console.log("\n  Verifying migrations against PGlite\n");
 
-  const db = await new PGlite({ extensions: { pg_trgm, unaccent } });
+  const db = await new PGlite({ extensions: { pg_trgm, unaccent, pgcrypto } });
 
   await db.exec(SUPABASE_SHIM);
 
@@ -536,6 +565,7 @@ async function main() {
     console.log("  ok    a part cannot be sold twice");
     console.log("  ok    reservations hold, conflict, and expire");
     console.log("  ok    staff see no costs, partners see all of them");
+    console.log("  ok    only the owner manages the team, and cannot strand it");
     console.log("  ok    renaming the catalog does not rewrite history");
   } else {
     for (const f of behaviourFailures) console.error(`  FAIL  ${f}`);

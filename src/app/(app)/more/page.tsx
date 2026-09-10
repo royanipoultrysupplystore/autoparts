@@ -13,6 +13,7 @@ import { getCurrentProfile, hasFinanceAccess } from "@/lib/supabase/server";
 import { AppHeader } from "@/components/nav/app-header";
 import { Card, SectionHeading } from "@/components/ui/primitives";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { ChangePassword } from "@/components/change-password";
 import { generatedPartCount, PART_CATALOG_SEED } from "@/lib/part-catalog-seed";
 
 export const dynamic = "force-dynamic";
@@ -106,7 +107,8 @@ export default async function MorePage() {
 
         <section className="space-y-2">
           <SectionHeading>Preferences</SectionHeading>
-          <Card className="overflow-hidden">
+          <Card className="divide-y divide-line overflow-hidden">
+            <ChangePassword />
             <ThemeToggle />
           </Card>
         </section>
