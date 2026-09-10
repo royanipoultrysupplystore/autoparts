@@ -32,7 +32,10 @@ export default async function AppLayout({
   return (
     <ProfileProvider profile={profile}>
       {/* Bottom padding clears the fixed tab bar plus the home indicator. */}
-      <div className="mx-auto min-h-dvh w-full max-w-[640px] pb-[calc(72px+env(safe-area-inset-bottom,0px))]">
+      {/* No min-height here: <body> already fills the viewport, and
+          repeating it under this padding made every page scroll 72px
+          past its own content into blank space. */}
+      <div className="mx-auto w-full max-w-[640px] pb-[calc(72px+env(safe-area-inset-bottom,0px))]">
         {children}
       </div>
       <BottomNav showReports={finance} />

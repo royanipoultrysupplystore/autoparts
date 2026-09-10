@@ -29,7 +29,7 @@ export function VehicleFilterBar() {
   return (
     <div
       className={cn(
-        "no-scrollbar sticky top-0 z-20 flex gap-2 overflow-x-auto border-b border-line bg-bg/90 px-3 py-2.5 backdrop-blur-md",
+        "no-scrollbar flex gap-2 overflow-x-auto border-t border-line px-3 py-2.5",
         pending && "opacity-70",
       )}
     >

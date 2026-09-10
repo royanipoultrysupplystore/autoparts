@@ -39,9 +39,8 @@ export default async function VehiclesPage({
             </Button>
           ) : undefined
         }
+        below={<VehicleFilterBar />}
       />
-
-      <VehicleFilterBar />
 
       <div className="space-y-2.5 px-3 py-3">
         {vehicles.length === 0 ? (

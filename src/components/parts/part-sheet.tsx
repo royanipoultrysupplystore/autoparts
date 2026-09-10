@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Clock, MapPin, Pencil, Trash, TriangleAlert } from "lucide-react";
@@ -21,14 +21,14 @@ import { DetailRow, Divider } from "@/components/ui/primitives";
 import { PartIconTile } from "@/lib/icons/part-icons";
 import { toast } from "@/components/ui/toaster";
 import { centsToInput, formatMoney, parseMoneyToCents } from "@/lib/money";
-import { CONDITION_LABELS, formatDateTime, partTitle, timeAgo, timeUntil, todayInVancouver } from "@/lib/format";
-import { CONDITIONS, PAYMENT_METHODS, SALE_CHANNELS } from "@/lib/vehicle-options";
+import { CONDITION_LABELS, formatDateTime, partTitle, timeAgo, timeUntil } from "@/lib/format";
+import { CONDITIONS, PAYMENT_METHODS } from "@/lib/vehicle-options";
 import { releaseReservation, reservePart, sellPart } from "@/lib/actions/sales";
 import { deletePart, updatePart } from "@/lib/actions/parts";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useFinanceAccess, useProfile } from "@/components/profile-provider";
 import { cn } from "@/lib/utils";
-import type { PartCondition, PartSide, PartStatus, PaymentMethod, SaleChannel } from "@/types/db";
+import type { PartCondition, PartSide, PartStatus, PaymentMethod } from "@/types/db";
 
 export type SheetPart = {
   id: string;
@@ -97,8 +97,11 @@ function PartSheetView({
 }) {
   const [mode, setMode] = useState<Mode>("detail");
 
+  // Only the edit form is long enough to want the full screen. The sell
+  // view is two fields and should sit at the bottom, close to the thumb,
+  // rather than stretching over the whole phone.
   return (
-    <SheetContent tall={mode === "sell" || mode === "edit"}>
+    <SheetContent tall={mode === "edit"}>
       {mode === "detail" && (
         <DetailView part={part} setMode={setMode} onOpenChange={onOpenChange} onChanged={onChanged} />
       )}
@@ -313,6 +316,15 @@ function DetailView({
 
 // =====================================================================
 // Sell
+//
+// This is the screen a partner uses with a customer standing in front of
+// them, often one-handed, sometimes in the rain. It asks two things:
+// what it sold for, and how it was paid. Nothing else.
+//
+// Buyer name, phone number, and which listing they came from used to be
+// here. They were never filled in honestly under those conditions --
+// they were skipped, or guessed at, which is worse than not asking. The
+// columns still exist for a future screen that has time for them.
 // =====================================================================
 function SellView({
   part,
@@ -328,37 +340,40 @@ function SellView({
   const router = useRouter();
   const profile = useProfile();
   const [pending, startTransition] = useTransition();
+  const priceRef = useRef<HTMLInputElement>(null);
 
   const [price, setPrice] = useState(centsToInput(part.asking_price_cents));
   const [payment, setPayment] = useState<PaymentMethod>("cash");
-  const [channel, setChannel] = useState<SaleChannel>("facebook");
-  // A held part is usually sold to the person holding it, so the name is
-  // seeded from the reservation at mount rather than synced in an effect.
-  const [buyerName, setBuyerName] = useState(part.reserved_for_name ?? "");
-  const [buyerContact, setBuyerContact] = useState("");
-  const [notes, setNotes] = useState("");
-  const [saleDate, setSaleDate] = useState(todayInVancouver());
   const [conflict, setConflict] = useState<{ message: string; detail?: string } | null>(null);
 
+  // Focus and select the price on open, so the common case -- sold at
+  // the asking price -- is one tap, and haggling is one overtype.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      priceRef.current?.focus();
+      priceRef.current?.select();
+    }, 60);
+    return () => clearTimeout(t);
+  }, []);
+
+  const cents = parseMoneyToCents(price);
+  const ready = cents !== null && cents >= 0 && !conflict;
+
   function submit() {
+    if (!ready) return;
     setConflict(null);
+
     startTransition(async () => {
       const result = await sellPart({
         partId: part.id,
         priceInput: price,
         paymentMethod: payment,
-        buyerName: buyerName.trim() || undefined,
-        buyerContact: buyerContact.trim() || undefined,
-        channel,
-        notes: notes.trim() || undefined,
+        channel: "facebook",
         soldBy: profile.id,
-        saleDate,
       });
 
       if (result.ok) {
-        toast.success(`Sold ${part.name}`, {
-          description: `${formatMoney(parseMoneyToCents(price) ?? part.asking_price_cents)} · ${buyerName || "no buyer name"}`,
-        });
+        toast.success(`Sold ${part.name}`, { description: formatMoney(cents ?? 0) });
         onChanged?.(part.id, "sold");
         onOpenChange(false);
         router.refresh();
@@ -366,7 +381,7 @@ function SellView({
       }
 
       if (result.kind === "conflict") {
-        // Do not close: the partner is mid-conversation and needs to read this.
+        // Stay open: the partner is mid-conversation and needs to read this.
         setConflict({ message: result.message, detail: result.detail });
         onChanged?.(part.id, "sold");
         return;
@@ -381,11 +396,12 @@ function SellView({
       <SheetHeader>
         <SheetTitle>Sell {partTitle(part.name, part.side)}</SheetTitle>
         <SheetDescription>
-          {part.year} {part.make} {part.model} · {part.stock_number}
+          {part.year} {part.make} {part.model} · asking{" "}
+          {formatMoney(part.asking_price_cents)}
         </SheetDescription>
       </SheetHeader>
 
-      <SheetBody className="space-y-4">
+      <SheetBody className="space-y-5">
         {conflict && (
           <div className="rounded-xl border border-danger/30 bg-danger-soft px-3.5 py-3">
             <p className="flex items-center gap-2 text-[14px] font-semibold text-danger">
@@ -403,80 +419,44 @@ function SellView({
           </div>
         )}
 
-        <Field label="Sale price" htmlFor="sale_price" required hint={`Asking ${formatMoney(part.asking_price_cents)}`}>
+        <Field label="Sold for" htmlFor="sale_price">
           <MoneyInput
+            ref={priceRef}
             id="sale_price"
             value={price}
             onValueChange={setPrice}
-            autoFocus
-            className="h-[52px] text-[20px] font-semibold"
+            inputMode="decimal"
+            className="h-16 text-[30px] font-semibold"
           />
         </Field>
 
-        <div className="grid grid-cols-2 gap-2.5">
-          <Field label="Paid with" htmlFor="payment">
-            <SimpleSelect
-              id="payment"
-              value={payment}
-              onValueChange={setPayment}
-              options={PAYMENT_METHODS.map((p) => ({ value: p.value, label: p.label }))}
-            />
-          </Field>
-
-          <Field label="Sold on" htmlFor="sale_date">
-            <Input
-              id="sale_date"
-              type="date"
-              value={saleDate}
-              onChange={(e) => setSaleDate(e.target.value)}
-            />
-          </Field>
-        </div>
-
-        <Field label="Came from" htmlFor="channel">
-          <SimpleSelect
-            id="channel"
-            value={channel}
-            onValueChange={setChannel}
-            options={SALE_CHANNELS.map((c) => ({ value: c.value, label: c.label }))}
-          />
-        </Field>
-
-        <div className="grid grid-cols-2 gap-2.5">
-          <Field label="Buyer" htmlFor="buyer_name">
-            <Input
-              id="buyer_name"
-              value={buyerName}
-              onChange={(e) => setBuyerName(e.target.value)}
-              placeholder="Name"
-              autoCapitalize="words"
-            />
-          </Field>
-
-          <Field label="Contact" htmlFor="buyer_contact">
-            <Input
-              id="buyer_contact"
-              value={buyerContact}
-              onChange={(e) => setBuyerContact(e.target.value)}
-              placeholder="Phone or FB"
-              inputMode="tel"
-            />
-          </Field>
-        </div>
-
-        <Field label="Notes" htmlFor="sale_notes">
-          <Textarea
-            id="sale_notes"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Picked up same day. Asked about the other mirror."
-            className="min-h-[70px]"
-          />
+        <Field label="Paid with">
+          <div className="grid grid-cols-3 gap-2">
+            {PAYMENT_METHODS.map((p) => (
+              <button
+                key={p.value}
+                type="button"
+                onClick={() => setPayment(p.value)}
+                aria-pressed={payment === p.value}
+                className={cn(
+                  "flex h-14 items-center justify-center rounded-xl border text-[15px] font-medium",
+                  "transition-[background-color,border-color,transform] duration-150 ease-out-soft",
+                  "active:scale-[0.97]",
+                  payment === p.value
+                    ? "border-accent bg-accent text-accent-text"
+                    : "border-line-strong bg-surface text-ink-muted",
+                )}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
         </Field>
 
         <p className="pb-2 text-[12.5px] leading-relaxed text-ink-subtle">
-          Sold by <span className="font-medium text-ink-muted">{profile.full_name}</span>.
-          Recorded in CAD.
+          Recorded against{" "}
+          <span className="font-medium text-ink-muted">{profile.full_name}</span>, today,
+          in CAD.
         </p>
       </SheetBody>
 
@@ -490,9 +470,9 @@ function SellView({
             size="lg"
             block
             onClick={submit}
-            disabled={pending || !!conflict}
+            disabled={pending || !ready}
           >
-            {pending ? "Recording…" : "Record the sale"}
+            {pending ? "Recording…" : `Sell for ${formatMoney(cents ?? 0)}`}
           </Button>
         </div>
       </SheetFooter>

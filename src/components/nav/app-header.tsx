@@ -11,12 +11,20 @@ export function AppHeader({
   subtitle,
   back,
   action,
+  below,
   className,
 }: {
   title: React.ReactNode;
   subtitle?: React.ReactNode;
   back?: { href: string; label?: string };
   action?: React.ReactNode;
+  /**
+   * Rendered inside the same sticky block, under the title. Anything
+   * that has to stay on screen with the header -- filter chips, a month
+   * picker -- goes here rather than being a second sticky element, which
+   * would just slide underneath this one.
+   */
+  below?: React.ReactNode;
   className?: string;
 }) {
   return (
@@ -46,6 +54,7 @@ export function AppHeader({
         </div>
         {action && <div className="shrink-0 pr-1">{action}</div>}
       </div>
+      {below}
     </header>
   );
 }
