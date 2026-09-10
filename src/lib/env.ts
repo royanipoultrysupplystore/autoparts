@@ -33,7 +33,6 @@ export type SupabaseEnv =
 export const CONFIG_GLOBAL = "__MS_PUBLIC_CONFIG__";
 
 declare global {
-  // eslint-disable-next-line no-var
   var __MS_PUBLIC_CONFIG__: Partial<PublicConfig> | undefined;
 }
 
