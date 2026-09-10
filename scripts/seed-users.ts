@@ -1,31 +1,27 @@
 /**
  * Team bootstrap.  `npm run seed:users`
  *
- * Creates the four partner accounts from .env.local: one owner and three
- * partners. Safe to re-run -- an existing email is updated, never
- * duplicated, and an existing password is left alone.
+ * Creates the partner accounts listed in .env.local: one owner and up to
+ * three partners. Safe to re-run — an existing email has its name and
+ * role confirmed, and its password left alone.
  *
- * Staff accounts are added later from the Team screen; they default to
- * the `staff` role, which the database will not let near a cost figure.
+ * Runs over the Postgres connection, so it needs the database password
+ * rather than the service role key. Passwords are hashed with bcrypt by
+ * the database itself (pgcrypto), exactly as GoTrue would, and a matching
+ * `auth.identities` row is written so email sign-in works.
+ *
+ * Staff accounts are added the same way with role=staff, or from the
+ * Supabase dashboard. They default to `staff`, which the database will
+ * not let near a cost figure.
+ *
+ * Flags:
+ *   --list             show the current accounts, change nothing
+ *   --delete <email>   remove one account and everything it owns
  */
 
-import { config } from "dotenv";
-import { createClient } from "@supabase/supabase-js";
-
-config({ path: ".env.local" });
-config({ path: ".env" });
-
-const URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!URL || !SERVICE_KEY) {
-  console.error("\n  Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.\n");
-  process.exit(1);
-}
-
-const db = createClient(URL, SERVICE_KEY, {
-  auth: { autoRefreshToken: false, persistSession: false },
-});
+import type pg from "pg";
+import { connect } from "./db";
+import { createAuthUser } from "./auth-users";
 
 type Member = {
   email?: string;
@@ -61,78 +57,124 @@ const MEMBERS: Member[] = [
   },
 ];
 
-async function findUserByEmail(email: string) {
-  // The admin API has no direct lookup-by-email, so page through.
-  for (let page = 1; page <= 20; page++) {
-    const { data, error } = await db.auth.admin.listUsers({ page, perPage: 200 });
-    if (error) throw new Error(error.message);
-    const hit = data.users.find((u) => u.email?.toLowerCase() === email.toLowerCase());
-    if (hit) return hit;
-    if (data.users.length < 200) return null;
+const args = process.argv.slice(2);
+const listOnly = args.includes("--list");
+const deleteIndex = args.indexOf("--delete");
+const deleteEmail = deleteIndex >= 0 ? args[deleteIndex + 1] : null;
+
+async function listMembers(db: pg.Client) {
+  const { rows } = await db.query<{
+    email: string; full_name: string; role: string; is_active: boolean; created_at: string;
+  }>(
+    `select u.email, p.full_name, p.role::text, p.is_active, p.created_at
+       from public.profiles p join auth.users u on u.id = p.id
+      order by p.role, p.full_name`,
+  );
+
+  if (rows.length === 0) {
+    console.log("  No accounts yet.\n");
+    return;
   }
-  return null;
+
+  const w = Math.max(...rows.map((r) => r.email.length), 5);
+  console.log(`  ${"email".padEnd(w)}  ${"name".padEnd(20)}  role     active`);
+  console.log(`  ${"-".repeat(w)}  ${"-".repeat(20)}  -------  ------`);
+  for (const r of rows) {
+    console.log(
+      `  ${r.email.padEnd(w)}  ${(r.full_name || "").padEnd(20)}  ` +
+        `${r.role.padEnd(7)}  ${r.is_active ? "yes" : "no"}`,
+    );
+  }
+  console.log("");
 }
 
 async function main() {
-  console.log("\n  Mahmood Shah Auto Recycler — team bootstrap\n");
+  console.log("\n  Mahmood Shah Auto Recycler — team\n");
 
-  const configured = MEMBERS.filter((m) => m.email && m.password);
+  const db = await connect();
 
-  if (configured.length === 0) {
-    console.error(
-      "  No members configured. Fill in SEED_OWNER_EMAIL / _NAME / _PASSWORD\n" +
-        "  (and the SEED_PARTNER_2..4 sets) in .env.local, then run this again.\n",
-    );
-    process.exit(1);
-  }
-
-  if (!MEMBERS[0].email) {
-    console.error("  SEED_OWNER_EMAIL is required: somebody has to be the owner.\n");
-    process.exit(1);
-  }
-
-  for (const m of configured) {
-    const email = m.email!.trim();
-    const full_name = (m.name || email.split("@")[0]).trim();
-
-    const existing = await findUserByEmail(email);
-
-    if (existing) {
-      await db
-        .from("profiles")
-        .update({ full_name, role: m.role, is_active: true })
-        .eq("id", existing.id);
-      console.log(`  = ${email.padEnd(34)} ${m.role} (already existed, role confirmed)`);
-      continue;
+  try {
+    if (listOnly) {
+      await listMembers(db);
+      return;
     }
 
-    const { data, error } = await db.auth.admin.createUser({
-      email,
-      password: m.password,
-      email_confirm: true,
-      user_metadata: { full_name, role: m.role },
-    });
-
-    if (error) {
-      console.error(`  ! ${email.padEnd(34)} ${error.message}`);
-      continue;
+    if (deleteEmail) {
+      const { rowCount } = await db.query(`delete from auth.users where lower(email) = lower($1)`, [
+        deleteEmail,
+      ]);
+      console.log(
+        rowCount
+          ? `  Deleted ${deleteEmail}.\n`
+          : `  No account found for ${deleteEmail}.\n`,
+      );
+      return;
     }
 
-    // The trigger creates the profile; make sure the role took.
-    await db
-      .from("profiles")
-      .update({ full_name, role: m.role, is_active: true })
-      .eq("id", data.user.id);
+    const configured = MEMBERS.filter((m) => m.email && m.password);
 
-    console.log(`  + ${email.padEnd(34)} ${m.role}`);
+    if (configured.length === 0) {
+      console.error(
+        "  No members configured. Fill in SEED_OWNER_EMAIL / _NAME / _PASSWORD\n" +
+          "  (and the SEED_PARTNER_2..4 sets) in .env.local, then run this again.\n",
+      );
+      process.exit(1);
+    }
+
+    if (!MEMBERS[0].email) {
+      console.error("  SEED_OWNER_EMAIL is required: somebody has to be the owner.\n");
+      process.exit(1);
+    }
+
+    for (const m of configured) {
+      const email = m.email!.trim().toLowerCase();
+      const fullName = (m.name || email.split("@")[0]).trim();
+
+      const { rows: existing } = await db.query<{ id: string }>(
+        `select id from auth.users where lower(email) = $1`,
+        [email],
+      );
+
+      if (existing.length > 0) {
+        await db.query(
+          `update public.profiles set full_name = $2, role = $3::public.user_role, is_active = true
+            where id = $1`,
+          [existing[0].id, fullName, m.role],
+        );
+        console.log(`  =  ${email.padEnd(34)} ${m.role}  (already existed, role confirmed)`);
+        continue;
+      }
+
+      await db.query("begin");
+      try {
+        const id = await createAuthUser(db, {
+          email,
+          password: m.password!,
+          fullName,
+          role: m.role,
+        });
+
+        // The trigger creates the profile; make sure the role took.
+        await db.query(
+          `update public.profiles set full_name = $2, role = $3::public.user_role, is_active = true
+            where id = $1`,
+          [id, fullName, m.role],
+        );
+
+        await db.query("commit");
+        console.log(`  +  ${email.padEnd(34)} ${m.role}`);
+      } catch (err) {
+        await db.query("rollback").catch(() => {});
+        console.error(`  !  ${email.padEnd(34)} ${(err as Error).message}`);
+      }
+    }
+
+    console.log("");
+    await listMembers(db);
+    console.log("  Everyone should change their password after signing in.\n");
+  } finally {
+    await db.end().catch(() => {});
   }
-
-  const { count } = await db
-    .from("profiles")
-    .select("id", { count: "exact", head: true })
-    .eq("is_active", true);
-
-  console.log(`\n  ${count} active member(s). Everyone should change their password after signing in.\n`);
 }
 
 main().catch((err) => {

@@ -35,54 +35,74 @@ At [supabase.com](https://supabase.com). The free tier is enough to start.
 cp .env.example .env.local
 ```
 
-Fill in `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and
-`SUPABASE_SERVICE_ROLE_KEY` from **Project Settings → API**.
+Fill in, from **Project Settings → API** and **→ Database**:
 
-The service role key bypasses every security policy in the database. It is
-used only by the seed scripts. Never commit it and never prefix it with
-`NEXT_PUBLIC_`.
+| Variable | Where |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Settings → API → Project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Settings → API → publishable / anon key |
+| `SUPABASE_DB_URL` | Settings → Database → Connection string (URI) |
+
+`SUPABASE_DB_URL` carries the database password, so URL-encode any
+special characters in it — `@` becomes `%40`. It is used only by the
+scripts below, never by the app.
+
+`SUPABASE_SERVICE_ROLE_KEY` is optional and currently unused: migrating,
+seeding, and creating accounts all run over the database connection.
 
 ### 3. Apply the migrations
 
-Either paste each file from `supabase/migrations/` into the Supabase SQL
-editor **in numeric order**, or use the CLI:
-
 ```bash
-npx supabase link --project-ref <your-project-ref>
-npm run db:push
+npm run db:migrate
 ```
 
-Run them in order — later files depend on earlier ones.
+Applies every file in `supabase/migrations/` in order, each in its own
+transaction, and records what it ran in `app_migrations.schema_migrations`
+so re-running is safe. `npm run db:status` shows what is applied.
 
-### 4. Create the accounts
+### 4. Load the parts catalog
+
+```bash
+npm run seed:catalog    # catalog only -- this is what production wants
+npm run seed            # catalog + a demo yard to look around
+```
+
+The catalog is **reference data**: vehicles cannot generate a parts list
+without it. The demo yard is **demo data**, tagged `[demo]` on every row
+and removable with `npm run seed:clear-demo`.
+
+### 5. Create the accounts
 
 Fill the `SEED_*` variables in `.env.local` with the four partners (one as
 owner), then:
 
 ```bash
-npm run seed:users
+npm run seed:users      # create them
+npm run team            # list who exists
 ```
 
-Everyone should change their password after their first sign-in.
+Everyone should change their password after their first sign-in. Accounts
+can equally be added from the Supabase dashboard under
+**Authentication → Users**; the profile row and role are created
+automatically by a trigger either way.
 
-### 5. Load the parts catalog
+### 6. Check it
 
 ```bash
-npm run seed            # catalog + a demo yard to look around
-npm run seed:catalog    # catalog only -- use this for the real database
+npm run verify          # typecheck, unit tests, migration harness
+npm run verify:live     # the same guarantees against the real project
 ```
 
-The catalog is **reference data**: vehicles cannot generate a parts list
-without it. The demo yard is **demo data**, tagged `[demo]` on every row and
-removable with `npm run seed:clear-demo`.
+`verify:live` is worth running after any schema change. It exercises the
+guarantees as the real roles through the real auth trigger, inside a
+transaction that is always rolled back, and then again over HTTP through
+PostgREST with a real JWT.
 
-### 6. Go
+### 7. Go
 
 ```bash
 npm run dev
 ```
-
----
 
 ## Commands
 
@@ -90,16 +110,22 @@ npm run dev
 |---|---|
 | `npm run dev` | Development server |
 | `npm run build` | Production build |
-| `npm run verify` | Typecheck + unit tests + migration harness |
+| `npm run verify` | Typecheck + unit tests + migration harness (offline) |
+| `npm run verify:live` | Guarantee check + API smoke test against the real project |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | Unit and architectural tests |
-| `npm run db:verify` | Applies every migration to a throwaway Postgres and asserts the guarantees below |
-| `npm run db:push` | Push migrations via the Supabase CLI |
+| `npm run lint` | ESLint |
+| `npm run db:verify` | Applies every migration to a throwaway Postgres and asserts the guarantees |
+| `npm run db:migrate` | Apply pending migrations to the live project |
+| `npm run db:status` | Which migrations have been applied |
+| `npm run db:check` | Guarantees, live, in a rolled-back transaction |
+| `npm run db:smoke` | Guarantees, live, over HTTP with a real JWT |
+| `npm run db:inspect` | Read-only look at extensions, roles, tables, buckets |
 | `npm run seed` | Catalog + demo yard |
 | `npm run seed:catalog` | Catalog only (production) |
-| `npm run seed:demo` | Demo yard only |
 | `npm run seed:clear-demo` | Remove every demo row |
-| `npm run seed:users` | Create the partner accounts |
+| `npm run seed:users` | Create the partner accounts from `.env.local` |
+| `npm run team` | List the accounts that exist |
 | `npm run icons:generate` | Re-render the PWA icons from the app mark |
 
 ---

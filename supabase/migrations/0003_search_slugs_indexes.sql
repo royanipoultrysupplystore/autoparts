@@ -9,11 +9,11 @@ create or replace function public.slugify(p_input text)
 returns text
 language sql
 immutable
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $fn$
   select trim(both '-' from
     regexp_replace(
-      regexp_replace(lower(public.unaccent(coalesce(p_input, ''))), '[^a-z0-9]+', '-', 'g'),
+      regexp_replace(lower(extensions.unaccent(coalesce(p_input, ''))), '[^a-z0-9]+', '-', 'g'),
       '-{2,}', '-', 'g'
     )
   )
@@ -32,7 +32,7 @@ create or replace function public.build_part_search_text(
 returns text
 language sql
 immutable
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $fn$
   select lower(
     concat_ws(' ',
@@ -52,7 +52,7 @@ $fn$;
 create or replace function public.parts_before_write()
 returns trigger
 language plpgsql
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $fn$
 declare
   v            record;
@@ -100,7 +100,7 @@ create trigger parts_before_write_trg
 create or replace function public.vehicles_refresh_part_search()
 returns trigger
 language plpgsql
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $fn$
 begin
   if new.year  is distinct from old.year
@@ -125,7 +125,7 @@ create trigger vehicles_refresh_part_search_trg
 -- ---------------------------------------------------------------------
 -- Indexes. The search screen is the hot path -- index for it first.
 -- ---------------------------------------------------------------------
-create index parts_search_text_trgm_idx on public.parts using gin (search_text public.gin_trgm_ops);
+create index parts_search_text_trgm_idx on public.parts using gin (search_text extensions.gin_trgm_ops);
 create index parts_status_idx            on public.parts (status);
 create index parts_vehicle_id_idx        on public.parts (vehicle_id);
 create index parts_category_idx          on public.parts (category);
@@ -197,7 +197,7 @@ returns table (
 language sql
 stable
 security invoker
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $fn$
   with toks as (
     select nullif(btrim(t), '') as t

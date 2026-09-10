@@ -17,7 +17,7 @@ create or replace function public.log_activity(
 returns uuid
 language plpgsql
 security invoker
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $fn$
 declare
   v_id uuid;
@@ -40,7 +40,7 @@ create or replace function public.generate_parts_for_vehicle(p_vehicle_id uuid)
 returns integer
 language plpgsql
 security invoker
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $fn$
 declare
   v_count   integer;
@@ -91,7 +91,7 @@ create or replace function public.trim_vehicle_parts(
 returns integer
 language plpgsql
 security invoker
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $fn$
 declare
   v_removed integer;
@@ -143,7 +143,7 @@ create or replace function public.sell_part(
 returns jsonb
 language plpgsql
 security invoker
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $fn$
 declare
   v_part     record;
@@ -232,7 +232,7 @@ create or replace function public.reserve_part(
 returns jsonb
 language plpgsql
 security invoker
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $fn$
 declare
   v_part     record;
@@ -300,7 +300,7 @@ create or replace function public.release_reservation(p_part_id uuid)
 returns jsonb
 language plpgsql
 security invoker
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $fn$
 declare
   v_part record;
@@ -337,7 +337,7 @@ create or replace function public.expire_reservations()
 returns integer
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $fn$
 declare
   r       record;
@@ -395,7 +395,7 @@ create or replace function public.set_part_status(
 returns jsonb
 language plpgsql
 security invoker
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $fn$
 declare
   v_part   record;

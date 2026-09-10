@@ -54,7 +54,7 @@ comment on column public.vehicles.landed_cost_cents is
 create or replace function public.assign_stock_number()
 returns trigger
 language plpgsql
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $fn$
 begin
   if new.stock_number is null or new.stock_number = '' then
@@ -190,7 +190,7 @@ create table public.activity_log (
 create or replace function public.touch_updated_at()
 returns trigger
 language plpgsql
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $fn$
 begin
   new.updated_at := now();

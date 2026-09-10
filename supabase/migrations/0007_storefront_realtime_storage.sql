@@ -64,7 +64,7 @@ returns table (
 language sql
 stable
 security definer
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $fn$
   with toks as (
     select nullif(btrim(t), '') as t
@@ -103,7 +103,7 @@ create or replace function public.publish_parts(
 returns integer
 language plpgsql
 security invoker
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $fn$
 declare
   v_count integer;

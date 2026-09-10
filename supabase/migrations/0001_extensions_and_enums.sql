@@ -4,8 +4,21 @@
 
 -- pg_trgm powers the fuzzy part search; unaccent normalises slugs.
 -- gen_random_uuid() is core in Postgres 13+, so pgcrypto is not needed.
-create extension if not exists "pg_trgm"  with schema public;
-create extension if not exists "unaccent" with schema public;
+--
+-- Both go in `extensions`, not `public`: that is where Supabase keeps
+-- them, and anything in `public` is published by PostgREST as a callable
+-- endpoint. There is no reason for the outside world to be able to call
+-- similarity() or show_trgm() directly.
+create schema if not exists extensions;
+
+create extension if not exists "pg_trgm"  with schema extensions;
+create extension if not exists "unaccent" with schema extensions;
+
+-- search_parts() runs SECURITY INVOKER, so the calling role needs to be
+-- able to resolve similarity() and word_similarity() for itself.
+-- Supabase already grants this; stated here so the migrations also apply
+-- cleanly to a plain Postgres.
+grant usage on schema extensions to anon, authenticated, service_role;
 
 -- ---------------------------------------------------------------------
 -- Enums
@@ -61,7 +74,7 @@ returns public.user_role
 language sql
 stable
 security definer
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $$
   select p.role
   from public.profiles p
@@ -75,7 +88,7 @@ returns boolean
 language sql
 stable
 security definer
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $$
   select coalesce(public.current_role_name() in ('owner','partner'), false)
 $$;
@@ -85,7 +98,7 @@ returns boolean
 language sql
 stable
 security definer
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $$
   select coalesce(public.current_role_name() = 'owner', false)
 $$;
@@ -96,7 +109,7 @@ returns boolean
 language sql
 stable
 security definer
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $$
   select exists (
     select 1 from public.profiles p
@@ -111,7 +124,7 @@ create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $$
 begin
   insert into public.profiles (id, full_name, phone, role)

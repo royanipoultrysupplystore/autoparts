@@ -18,7 +18,7 @@ returns void
 language plpgsql
 stable
 security definer
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $fn$
 begin
   if not public.has_finance_access() then
@@ -92,7 +92,7 @@ returns table (
 language plpgsql
 stable
 security definer
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $fn$
 begin
   perform public.assert_finance_access();
@@ -170,7 +170,7 @@ returns table (
 language plpgsql
 stable
 security definer
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $fn$
 begin
   perform public.assert_finance_access();
@@ -195,7 +195,7 @@ returns jsonb
 language plpgsql
 stable
 security definer
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $fn$
 declare
   v_start date;
@@ -354,7 +354,7 @@ returns jsonb
 language plpgsql
 stable
 security definer
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $fn$
 declare
   v_finance     boolean := public.has_finance_access();
@@ -431,7 +431,7 @@ returns table (
 language sql
 stable
 security invoker
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $fn$
   select a.id, a.user_id, coalesce(p.full_name, 'System'),
          a.entity_type, a.entity_id, a.action, a.summary, a.created_at
