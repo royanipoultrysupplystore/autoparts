@@ -4,7 +4,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
 /**
- * The bar across the top during a navigation.
+ * The spinner shown while a screen is on its way.
  *
  * `loading.tsx` covers the wait once the new route starts rendering, but
  * there is a gap before that: the tap lands, the request goes out, and
@@ -12,59 +12,46 @@ import { usePathname, useSearchParams } from "next/navigation";
  * enough to read as "it ignored me", which is what makes people tap
  * twice.
  *
- * The App Router exposes no router events, so the two ends of a
- * navigation are detected here: a click on an internal link starts the
- * bar, and the pathname changing finishes it.
+ * It waits 180ms before appearing. Most navigations finish inside that,
+ * and a spinner that flashes for a tenth of a second looks worse than no
+ * spinner at all -- it reads as a glitch rather than as progress. Only a
+ * wait long enough to notice gets acknowledged.
  *
- * Progress lives in a module-level store rather than component state.
+ * State lives in a module-level store rather than component state.
  * Navigation is an external system, and this is the shape React wants
- * for one: subscribe, read a snapshot, and let the store push updates.
- * A single number carries it -- 0 means hidden -- so the snapshot stays
- * a stable primitive.
+ * for one: subscribe, read a snapshot, let the store push updates.
  */
-const progressStore = {
-  value: 0,
+const navStore = {
+  visible: false,
   listeners: new Set<() => void>(),
-  creep: null as ReturnType<typeof setInterval> | null,
-  hide: null as ReturnType<typeof setTimeout> | null,
+  appear: null as ReturnType<typeof setTimeout> | null,
 
   subscribe(onChange: () => void) {
-    progressStore.listeners.add(onChange);
-    return () => progressStore.listeners.delete(onChange);
+    navStore.listeners.add(onChange);
+    return () => navStore.listeners.delete(onChange);
   },
 
-  getSnapshot: () => progressStore.value,
-  getServerSnapshot: () => 0,
+  getSnapshot: () => navStore.visible,
+  getServerSnapshot: () => false,
 
-  set(value: number) {
-    progressStore.value = value;
-    progressStore.listeners.forEach((l) => l());
+  set(visible: boolean) {
+    if (navStore.visible === visible) return;
+    navStore.visible = visible;
+    navStore.listeners.forEach((l) => l());
   },
 
   start() {
-    if (progressStore.creep) clearInterval(progressStore.creep);
-    if (progressStore.hide) clearTimeout(progressStore.hide);
-
-    progressStore.set(8);
-
-    // Decelerating: quick enough to look responsive, then slowing, and
-    // never arriving on its own. Honest about waiting on a network.
-    progressStore.creep = setInterval(() => {
-      const p = progressStore.value;
-      if (p >= 90) return;
-      progressStore.set(p + Math.max(0.4, (90 - p) / 14));
-    }, 90);
+    if (navStore.appear) clearTimeout(navStore.appear);
+    // The grace period: say nothing about a wait nobody notices.
+    navStore.appear = setTimeout(() => navStore.set(true), 180);
   },
 
   finish() {
-    if (progressStore.creep) {
-      clearInterval(progressStore.creep);
-      progressStore.creep = null;
+    if (navStore.appear) {
+      clearTimeout(navStore.appear);
+      navStore.appear = null;
     }
-    if (progressStore.value === 0) return;
-
-    progressStore.set(100);
-    progressStore.hide = setTimeout(() => progressStore.set(0), 260);
+    navStore.set(false);
   },
 };
 
@@ -72,10 +59,10 @@ export function NavigationProgress() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const progress = useSyncExternalStore(
-    progressStore.subscribe,
-    progressStore.getSnapshot,
-    progressStore.getServerSnapshot,
+  const visible = useSyncExternalStore(
+    navStore.subscribe,
+    navStore.getSnapshot,
+    navStore.getServerSnapshot,
   );
 
   // Start on any click that is going to navigate.
@@ -98,7 +85,7 @@ export function NavigationProgress() {
         return;
       }
 
-      progressStore.start();
+      navStore.start();
     }
 
     document.addEventListener("click", onClick, { capture: true });
@@ -107,26 +94,73 @@ export function NavigationProgress() {
 
   // The route has changed, so the navigation is over.
   useEffect(() => {
-    progressStore.finish();
+    navStore.finish();
   }, [pathname, searchParams]);
 
   return (
     <div
-      aria-hidden="true"
-      className="pointer-events-none fixed inset-x-0 top-0 z-[100] h-[3px]"
+      aria-hidden={!visible}
+      role="status"
+      className="pointer-events-none fixed inset-0 z-[100] grid place-items-center"
       style={{
-        opacity: progress > 0 ? 1 : 0,
-        transition: "opacity 200ms ease-out",
+        opacity: visible ? 1 : 0,
+        transition: `opacity ${visible ? 160 : 220}ms var(--ms-ease-out)`,
       }}
     >
+      {/* A breath of scrim: enough to lift the spinner off a busy list,
+          not enough to feel like a modal has opened. */}
       <div
-        className="h-full bg-accent"
+        className="absolute inset-0 bg-bg/35 backdrop-blur-[1px]"
         style={{
-          width: `${progress}%`,
-          transition: "width 220ms cubic-bezier(0.16, 1, 0.3, 1)",
-          boxShadow: "0 0 10px 1px var(--accent), 0 0 4px var(--accent)",
+          opacity: visible ? 1 : 0,
+          transition: "opacity 200ms var(--ms-ease-out)",
         }}
       />
+
+      <div
+        className={
+          "glass relative grid size-[68px] place-items-center rounded-[22px] border " +
+          "shadow-[0_12px_36px_-10px_rgb(26_25_23/0.3)]"
+        }
+        style={{
+          transform: visible ? "scale(1)" : "scale(0.88)",
+          transition: `transform ${visible ? 220 : 160}ms var(--ms-ease-spring)`,
+        }}
+      >
+        <Spinner />
+      </div>
+
+      <span className="sr-only">Loading</span>
     </div>
+  );
+}
+
+/**
+ * An arc that both rotates and changes length, rather than a ring of
+ * fixed size going round. The varying sweep is what stops it reading as
+ * a static image and makes the motion feel alive.
+ */
+function Spinner() {
+  return (
+    <svg viewBox="0 0 44 44" className="size-9 animate-spinner-rotate" fill="none">
+      {/* The track it runs on, barely there. */}
+      <circle
+        cx="22"
+        cy="22"
+        r="18"
+        stroke="currentColor"
+        strokeWidth="3.5"
+        className="text-accent/15"
+      />
+      <circle
+        cx="22"
+        cy="22"
+        r="18"
+        stroke="currentColor"
+        strokeWidth="3.5"
+        strokeLinecap="round"
+        className="animate-spinner-dash text-accent"
+      />
+    </svg>
   );
 }

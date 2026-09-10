@@ -285,6 +285,44 @@
     }
   }
 
+  /* The navigation spinner.
+
+     Two animations at once: the whole ring turns steadily, while the
+     visible arc grows and shrinks. A fixed-length arc going round at a
+     constant speed reads as a looping image; a sweep that opens and
+     closes reads as something working. The circumference at r=18 is
+     about 113, which is where the dash figures come from. */
+  .animate-spinner-rotate {
+    animation: spinner-rotate 1.9s linear infinite;
+    transform-origin: center;
+  }
+
+  .animate-spinner-dash {
+    animation: spinner-dash 1.5s ease-in-out infinite;
+    transform-origin: center;
+  }
+
+  @keyframes spinner-rotate {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes spinner-dash {
+    0% {
+      stroke-dasharray: 2 113;
+      stroke-dashoffset: 0;
+    }
+    50% {
+      stroke-dasharray: 80 113;
+      stroke-dashoffset: -14;
+    }
+    100% {
+      stroke-dasharray: 80 113;
+      stroke-dashoffset: -110;
+    }
+  }
+
   @keyframes shimmer {
     0% {
       background-position: 100% 50%;
