@@ -298,7 +298,6 @@
      tab bar, sticky headers. The saturation bump keeps colour showing
      through the blur instead of going grey. */
   .glass {
-    position: relative;
     background: var(--glass-bg);
     border-color: var(--glass-border);
     box-shadow: var(--glass-shadow);
@@ -309,23 +308,19 @@
     @apply backdrop-blur-2xl backdrop-saturate-[1.8];
   }
 
-  /* The lit top edge. A single hairline does more for the illusion of a
-     raised pane than any amount of extra blur. */
-  .glass-top::before,
-  .glass-bottom::after {
-    content: "";
-    position: absolute;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: var(--glass-highlight);
-    pointer-events: none;
+  /* The lit edge: a single hairline does more for the impression of a
+     raised pane than any amount of extra blur.
+     
+     Drawn with an inset shadow rather than a pseudo-element. A
+     pseudo-element needs `position: relative` on the parent, and these
+     classes land after `.fixed` and `.sticky` in the same layer -- so
+     that one declaration silently unpinned the tab bar and the header
+     and dropped them into the page flow. */
+  .glass-top {
+    box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow);
   }
-  .glass-top::before {
-    top: 0;
-  }
-  .glass-bottom::after {
-    bottom: 0;
+  .glass-bottom {
+    box-shadow: inset 0 -1px 0 var(--glass-highlight), var(--glass-shadow);
   }
 
   /* Falls back to an opaque surface where backdrop-filter is missing,
