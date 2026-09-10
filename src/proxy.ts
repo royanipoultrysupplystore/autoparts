@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { readSupabaseEnv } from "@/lib/env";
 
 /**
  * Refreshes the Supabase session on every request and keeps signed-out
@@ -15,6 +16,7 @@ const PUBLIC_PREFIXES = [
   "/auth",
   "/shop",
   "/offline",
+  "/setup-required",
   "/manifest.webmanifest",
   "/icons",
   "/sw.js",
@@ -27,9 +29,31 @@ function isPublic(pathname: string) {
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
+  /*
+   * This runs before every page, so anything thrown here becomes a bare
+   * "Internal Server Error" on every route in the app -- including the
+   * static ones that need no database at all.
+   *
+   * Supabase's client throws when handed an undefined URL, which is
+   * exactly what a build that never received its NEXT_PUBLIC_* values
+   * hands it. Check first and send the visitor somewhere that explains
+   * the problem, rather than crashing the whole site over a config
+   * value.
+   */
+  const env = readSupabaseEnv();
+
+  if (!env.ok) {
+    if (request.nextUrl.pathname === "/setup-required") return response;
+
+    const url = request.nextUrl.clone();
+    url.pathname = "/setup-required";
+    url.search = "";
+    return NextResponse.rewrite(url);
+  }
+
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    env.url,
+    env.anonKey,
     {
       cookies: {
         getAll: () => request.cookies.getAll(),

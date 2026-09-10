@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { cache } from "react";
+import { readSupabaseEnv } from "@/lib/env";
 import type { Profile } from "@/types/db";
 
 /**
@@ -9,10 +10,19 @@ import type { Profile } from "@/types/db";
  */
 export async function createSupabaseServer() {
   const cookieStore = await cookies();
+  const env = readSupabaseEnv();
+
+  if (!env.ok) {
+    throw new Error(
+      "Supabase is not configured for this build. Missing: " +
+        [...env.missing, ...env.invalid].join(", ") +
+        ". These are compiled in at build time, so set them and redeploy.",
+    );
+  }
 
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    env.url,
+    env.anonKey,
     {
       cookies: {
         getAll: () => cookieStore.getAll(),
