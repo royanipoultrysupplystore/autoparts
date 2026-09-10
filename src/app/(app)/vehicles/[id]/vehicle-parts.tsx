@@ -17,8 +17,7 @@ import { bulkSetPrices, publishParts } from "@/lib/actions/parts";
 import { PartSheet, type SheetPart } from "@/components/parts/part-sheet";
 import { AddPartSheet } from "@/components/parts/add-part-sheet";
 import { useFinanceAccess } from "@/components/profile-provider";
-import type { CatalogOption } from "@/lib/data/catalog";
-import type { Part, PartStatus } from "@/types/db";
+import type { CatalogOption, Part, PartStatus } from "@/types/db";
 
 type VehicleHead = {
   id: string;

@@ -20,8 +20,7 @@ import { addPart } from "@/lib/actions/parts";
 import { CONDITIONS } from "@/lib/vehicle-options";
 import { SIDE_LABELS } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { CatalogOption } from "@/lib/data/catalog";
-import type { PartCondition, PartSide } from "@/types/db";
+import type { CatalogOption, PartCondition, PartSide } from "@/types/db";
 
 /**
  * Adding a part the generator did not create.

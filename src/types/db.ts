@@ -305,3 +305,20 @@ export type PublicPart = {
   exterior_colour: string | null;
   total_count?: number;
 };
+
+/**
+ * One row of the parts catalog, as the "add a part" picker needs it.
+ *
+ * Lives here rather than beside its query because both the server that
+ * fetches it and the client component that renders it refer to it, and a
+ * type shared across that boundary does not belong in a `server-only`
+ * module.
+ */
+export type CatalogOption = {
+  id: string;
+  name: string;
+  category: string;
+  icon_key: string;
+  default_sides: PartSide[];
+  is_high_value: boolean;
+};

@@ -1,16 +1,8 @@
 import "server-only";
 import { createSupabaseServer } from "@/lib/supabase/server";
-import type { PartSide } from "@/types/db";
+import type { CatalogOption } from "@/types/db";
 
-/** What the "add a part" picker needs -- small enough to send whole. */
-export type CatalogOption = {
-  id: string;
-  name: string;
-  category: string;
-  icon_key: string;
-  default_sides: PartSide[];
-  is_high_value: boolean;
-};
+export type { CatalogOption };
 
 export async function getActiveCatalog(): Promise<CatalogOption[]> {
   const supabase = await createSupabaseServer();
