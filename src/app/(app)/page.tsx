@@ -1,138 +1,24 @@
 import Link from "next/link";
-import { Suspense } from "react";
-import {
-  Boxes,
-  Car,
-  Clock,
-  TrendingDown,
-  ChevronRight,
-  Search as SearchIcon,
-} from "lucide-react";
-import { createSupabaseServer, getCurrentProfile } from "@/lib/supabase/server";
-import { formatMoney, formatMoneyWhole, formatPercent } from "@/lib/money";
-import { timeAgo, TIMEZONE } from "@/lib/format";
-import { Card, EmptyState, SectionHeading, Stat, SkeletonRows } from "@/components/ui/primitives";
+import { Car, Plus, Search as SearchIcon } from "lucide-react";
+import { listVehicles } from "@/lib/data/vehicles";
+import { getCurrentProfile, hasFinanceAccess } from "@/lib/supabase/server";
 import { AppHeader } from "@/components/nav/app-header";
 import { Wordmark } from "@/components/brand";
-import type { ActivityEntry, DashboardStats } from "@/types/db";
+import { EmptyState, SectionHeading } from "@/components/ui/primitives";
+import { VehicleCard } from "@/components/vehicles/vehicle-card";
+import { TIMEZONE } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-async function StatsBlock() {
-  const supabase = await createSupabaseServer();
-  const { data, error } = await supabase.rpc("dashboard_stats");
-
-  if (error) {
-    return (
-      <Card className="p-4 text-[13.5px] text-ink-muted">
-        Could not load the dashboard: {error.message}
-      </Card>
-    );
-  }
-
-  const stats = data as DashboardStats;
-  const finance = stats.finance_visible;
-
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2.5">
-        {finance && (
-          <Stat
-            label="Inventory value"
-            value={formatMoneyWhole(stats.inventory_value_cents)}
-            sub="At asking prices"
-          />
-        )}
-        <Stat
-          label="Parts available"
-          value={new Intl.NumberFormat("en-CA").format(stats.parts_available)}
-          sub={
-            stats.parts_reserved > 0
-              ? `${stats.parts_reserved} on hold`
-              : "Nothing on hold"
-          }
-        />
-        {finance && (
-          <Stat
-            label="This month"
-            value={formatMoneyWhole(stats.month_revenue_cents)}
-            sub="Parts revenue"
-            tone="positive"
-          />
-        )}
-        <Stat
-          label="This week"
-          value={`${stats.week_sales_count} sold`}
-          sub={finance ? formatMoney(stats.week_revenue_cents) : "Parts moved"}
-        />
-        <Stat
-          label="Active vehicles"
-          value={stats.active_vehicles}
-          sub="Incoming or parting out"
-        />
-      </div>
-
-      {finance && stats.vehicles_below_break_even && stats.vehicles_below_break_even.length > 0 && (
-        <section className="space-y-2">
-          <SectionHeading>Needs attention</SectionHeading>
-          <Card className="divide-y divide-line overflow-hidden">
-            {stats.vehicles_below_break_even.map((v) => (
-              <Link
-                key={v.vehicle_id}
-                href={`/vehicles/${v.vehicle_id}`}
-                className="flex items-center gap-3 px-3.5 py-3 active:bg-surface-2"
-              >
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-reserved-soft text-reserved">
-                  <TrendingDown className="size-[18px]" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[14.5px] font-medium text-ink">
-                    {v.label}
-                  </span>
-                  <span className="tnum block text-[12.5px] text-ink-muted">
-                    {formatMoney(v.break_even_remaining_cents)} to break even ·{" "}
-                    {formatPercent(v.recovery_pct)} recovered · {v.days_held}d held
-                  </span>
-                </span>
-                <ChevronRight className="size-4 shrink-0 text-ink-subtle" />
-              </Link>
-            ))}
-          </Card>
-        </section>
-      )}
-    </div>
-  );
-}
-
-async function ActivityFeed() {
-  const supabase = await createSupabaseServer();
-  const { data } = await supabase.rpc("recent_activity", { p_limit: 12 });
-  const entries = (data ?? []) as ActivityEntry[];
-
-  if (entries.length === 0) {
-    return (
-      <EmptyState
-        icon={<Clock className="size-7" />}
-        title="Nothing has happened yet"
-        body="Add your first vehicle and the yard's activity will show up here — who sold what, and when."
-        action={{ label: "Add a vehicle", href: "/vehicles/new" }}
-      />
-    );
-  }
-
-  return (
-    <Card className="divide-y divide-line overflow-hidden">
-      {entries.map((e) => (
-        <div key={e.id} className="px-3.5 py-2.5">
-          <p className="text-[13.5px] leading-snug text-ink">{e.summary}</p>
-          <p className="mt-0.5 text-[12px] text-ink-subtle">
-            {e.user_name} · {timeAgo(e.created_at)}
-          </p>
-        </div>
-      ))}
-    </Card>
-  );
-}
+/**
+ * Home.
+ *
+ * Two things only: the search box, and what is in the yard. This is the
+ * screen a partner opens standing next to a car with a customer on the
+ * phone -- it is for finding something, not for reading figures. Every
+ * number that used to sit here has moved to Reports, where it can be
+ * labelled properly and read when there is time to think about it.
+ */
 
 /** Greeting follows the clock in the yard, not the server's. */
 function greeting(): string {
@@ -148,64 +34,70 @@ function greeting(): string {
   return "Evening";
 }
 
-export default async function DashboardPage() {
-  const profile = await getCurrentProfile();
+export default async function HomePage() {
+  const [profile, vehicles] = await Promise.all([
+    getCurrentProfile(),
+    // Cars still being worked come first; finished ones are in Vehicles.
+    listVehicles({ status: ["incoming", "parting_out"] }),
+  ]);
+
   const firstName = (profile?.full_name || "there").split(" ")[0];
+  const finance = hasFinanceAccess(profile);
 
   return (
     <>
       <AppHeader title={<Wordmark />} />
 
-      <div className="space-y-5 px-3 py-4">
-        <div className="px-1">
-          <p className="text-[15px] text-ink-muted">
-            {greeting()}, <span className="font-medium text-ink">{firstName}</span>.
-          </p>
-        </div>
+      <div className="space-y-4 px-3 py-4">
+        <p className="px-1 text-[15px] text-ink-muted">
+          {greeting()}, <span className="font-medium text-ink">{firstName}</span>.
+        </p>
 
+        {/* The one thing this screen is for. */}
         <Link
           href="/search"
-          className="flex h-12 items-center gap-2.5 rounded-xl border border-line-strong bg-surface px-3.5 text-ink-subtle shadow-[var(--shadow-card)] active:bg-surface-2"
+          className="flex h-[52px] items-center gap-2.5 rounded-xl border border-line-strong bg-surface px-3.5 text-ink-subtle shadow-[var(--shadow-card)] transition-transform duration-150 ease-out-soft active:scale-[0.99] active:bg-surface-2"
         >
           <SearchIcon className="size-5" />
-          <span className="text-[15px]">Search every part in the yard</span>
+          <span className="text-[16px]">Search every part in the yard</span>
         </Link>
 
-        <Suspense fallback={<div className="skeleton h-40 rounded-xl" />}>
-          <StatsBlock />
-        </Suspense>
-
-        <section className="space-y-2">
+        <section className="space-y-2.5">
           <SectionHeading
             action={
-              <Link href="/activity" className="text-[13px] font-medium text-accent">
-                See all
+              <Link href="/vehicles" className="text-[13px] font-medium text-accent">
+                All vehicles
               </Link>
             }
           >
-            Recent activity
+            In the yard
           </SectionHeading>
-          <Suspense fallback={<SkeletonRows count={4} />}>
-            <ActivityFeed />
-          </Suspense>
+
+          {vehicles.length === 0 ? (
+            <EmptyState
+              icon={<Car className="size-7" />}
+              title="Nothing in the yard"
+              body={
+                finance
+                  ? "Add the first car from the auction. The system builds its whole parts list for you, and you trim off what it doesn't have."
+                  : "No vehicles are being parted out right now."
+              }
+              action={finance ? { label: "Add a vehicle", href: "/vehicles/new" } : undefined}
+            />
+          ) : (
+            vehicles.map((v) => <VehicleCard key={v.id} vehicle={v} />)
+          )}
         </section>
 
-        <div className="grid grid-cols-2 gap-2.5">
+        {finance && vehicles.length > 0 && (
           <Link
-            href="/vehicles"
-            className="flex items-center gap-2.5 rounded-xl border border-line bg-surface p-3.5 active:bg-surface-2"
+            href="/vehicles/new"
+            className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-line-strong px-4 py-3.5 text-[14.5px] font-medium text-ink-muted transition-transform duration-150 ease-out-soft active:scale-[0.99] active:bg-surface-2"
           >
-            <Car className="size-5 text-accent" />
-            <span className="text-[14px] font-medium text-ink">Vehicles</span>
+            <Plus className="size-[18px]" />
+            Add a vehicle
           </Link>
-          <Link
-            href="/search?status=available"
-            className="flex items-center gap-2.5 rounded-xl border border-line bg-surface p-3.5 active:bg-surface-2"
-          >
-            <Boxes className="size-5 text-accent" />
-            <span className="text-[14px] font-medium text-ink">Inventory</span>
-          </Link>
-        </div>
+        )}
       </div>
     </>
   );

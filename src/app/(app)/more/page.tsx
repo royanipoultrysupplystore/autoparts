@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   ChevronRight,
+  Clock,
   LogOut,
   Receipt,
   Users,
@@ -82,6 +83,12 @@ export default async function MorePage() {
         <section className="space-y-2">
           <SectionHeading>Yard</SectionHeading>
           <Card className="divide-y divide-line overflow-hidden">
+            <Row
+              href="/activity"
+              icon={Clock}
+              label="Activity"
+              note="Who sold what, and when"
+            />
             <Row
               href="/catalog"
               icon={Wrench}

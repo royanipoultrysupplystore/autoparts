@@ -16,6 +16,8 @@ import { formatMoney, formatPercent } from "@/lib/money";
 import { formatDate } from "@/lib/format";
 import { CHANNEL_LABEL, EXPENSE_CATEGORY_LABEL, PAYMENT_LABEL } from "@/lib/vehicle-options";
 import { cn } from "@/lib/utils";
+import { YardSnapshot } from "@/components/reports/yard-snapshot";
+import { Suspense } from "react";
 
 export const dynamic = "force-dynamic";
 
@@ -82,6 +84,11 @@ export default async function ReportsPage({
       </div>
 
       <div className="space-y-5 px-3 py-4">
+        {/* Right now, before the month-by-month figures below. */}
+        <Suspense fallback={<div className="skeleton h-56 rounded-xl" />}>
+          <YardSnapshot />
+        </Suspense>
+
         {!report ? (
           <EmptyState title="This report is not available" body="Try another month." />
         ) : (
