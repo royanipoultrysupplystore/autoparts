@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil, Scissors } from "lucide-react";
+import { Scissors } from "lucide-react";
 import {
   getVehicle,
   getVehicleFinance,
@@ -17,7 +17,7 @@ import { formatMoney, formatPercent } from "@/lib/money";
 import { formatDate, formatKm, vehicleLabel } from "@/lib/format";
 import { SOURCE_LABEL } from "@/lib/vehicle-options";
 import { VehicleParts } from "./vehicle-parts";
-import { VehicleDangerZone } from "./danger-zone";
+import { VehicleMenu } from "@/components/vehicles/vehicle-menu";
 import { BODY_TYPES, DRIVETRAINS, FUEL_TYPES, TRANSMISSIONS } from "@/lib/vehicle-options";
 
 export const dynamic = "force-dynamic";
@@ -69,11 +69,11 @@ export default async function VehicleDetailPage({
         back={{ href: "/vehicles" }}
         action={
           finance ? (
-            <Button asChild size="icon-sm" variant="ghost" aria-label="Edit vehicle">
-              <Link href={`/vehicles/${id}/edit`}>
-                <Pencil className="size-4" />
-              </Link>
-            </Button>
+            <VehicleMenu
+              vehicleId={id}
+              label={vehicleLabel(vehicle)}
+              hasParts={parts.length > 0}
+            />
           ) : undefined
         }
       />
@@ -202,7 +202,6 @@ export default async function VehicleDetailPage({
           />
         </section>
 
-        {finance && <VehicleDangerZone vehicleId={id} label={vehicleLabel(vehicle)} />}
       </div>
     </>
   );
