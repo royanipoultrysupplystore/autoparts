@@ -69,10 +69,19 @@
   --dur-base:    180ms;
   --dur-slow:    260ms;
 
-  /* Glass: the translucency and blur used by raised surfaces. */
-  --glass-bg:     rgb(255 255 255 / 0.72);
-  --glass-border: rgb(255 255 255 / 0.6);
-  --glass-blur:   20px;
+  /* Glass.
+
+     The page sits on a warm grey, and the glass on white -- the panel is
+     lighter than what passes under it, which is what makes the edge
+     legible. Matching them, as an earlier version did, produces a
+     technically translucent surface that looks exactly like a solid one.
+
+     A hairline of white along the top edge does most of the remaining
+     work: it reads as light catching a raised pane. */
+  --glass-bg:        rgb(255 255 255 / 0.62);
+  --glass-border:    rgb(255 255 255 / 0.75);
+  --glass-highlight: rgb(255 255 255 / 0.9);
+  --glass-shadow:    0 1px 24px -8px rgb(26 25 23 / 0.18);
 }
 
 .dark {
@@ -110,8 +119,10 @@
 
   --ring:          #4a97d1;
 
-  --glass-bg:     rgb(30 29 35 / 0.72);
-  --glass-border: rgb(255 255 255 / 0.09);
+  --glass-bg:        rgb(24 23 28 / 0.68);
+  --glass-border:    rgb(255 255 255 / 0.1);
+  --glass-highlight: rgb(255 255 255 / 0.12);
+  --glass-shadow:    0 1px 24px -8px rgb(0 0 0 / 0.5);
 }
 
 @theme inline {
@@ -245,6 +256,23 @@
     animation: shimmer 1.4s ease infinite;
   }
 
+  /* Each screen rises slightly as it arrives, rather than blinking into
+     place. Short enough that nobody waits on it. */
+  .animate-page-in {
+    animation: page-in 220ms var(--ms-ease-out) both;
+  }
+
+  @keyframes page-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
   /* A slower spin than the default: at 1s it reads as an error state.
      This is meant to say "on its way", not "something is wrong". */
   .animate-spin-slow {
@@ -270,13 +298,34 @@
      tab bar, sticky headers. The saturation bump keeps colour showing
      through the blur instead of going grey. */
   .glass {
+    position: relative;
     background: var(--glass-bg);
     border-color: var(--glass-border);
+    box-shadow: var(--glass-shadow);
     /* Composed from Tailwind's own utilities rather than written by hand:
        a hand-written `backdrop-filter` next to its `-webkit-` twin gets
        deduplicated down to one of them, and it is not always the one
        every browser understands. */
-    @apply backdrop-blur-xl backdrop-saturate-150;
+    @apply backdrop-blur-2xl backdrop-saturate-[1.8];
+  }
+
+  /* The lit top edge. A single hairline does more for the illusion of a
+     raised pane than any amount of extra blur. */
+  .glass-top::before,
+  .glass-bottom::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: var(--glass-highlight);
+    pointer-events: none;
+  }
+  .glass-top::before {
+    top: 0;
+  }
+  .glass-bottom::after {
+    bottom: 0;
   }
 
   /* Falls back to an opaque surface where backdrop-filter is missing,

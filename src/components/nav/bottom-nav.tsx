@@ -65,7 +65,7 @@ export function BottomNav({ showReports }: { showReports: boolean }) {
 
   return (
     <nav
-      className="pb-safe glass fixed inset-x-0 bottom-0 z-40 border-t"
+      className="pb-safe glass glass-top fixed inset-x-0 bottom-0 z-40 border-t"
       aria-label="Main"
     >
       <ul className="mx-auto flex max-w-[640px] items-stretch">

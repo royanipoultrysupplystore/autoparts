@@ -4,6 +4,9 @@ import { BottomNav } from "@/components/nav/bottom-nav";
 import { ProfileProvider } from "@/components/profile-provider";
 import { ReservationSweeper } from "@/components/reservation-sweeper";
 import { InstallPrompt, ServiceWorkerRegistrar } from "@/components/pwa/pwa";
+import { NavigationProgress } from "@/components/nav/navigation-progress";
+import { PageTransition } from "@/components/nav/page-transition";
+import { Suspense } from "react";
 
 export default async function AppLayout({
   children,
@@ -35,8 +38,13 @@ export default async function AppLayout({
       {/* No min-height here: <body> already fills the viewport, and
           repeating it under this padding made every page scroll 72px
           past its own content into blank space. */}
+      {/* useSearchParams inside needs a Suspense boundary. */}
+      <Suspense fallback={null}>
+        <NavigationProgress />
+      </Suspense>
+
       <div className="mx-auto w-full max-w-[640px] pb-[calc(72px+env(safe-area-inset-bottom,0px))]">
-        {children}
+        <PageTransition>{children}</PageTransition>
       </div>
       <BottomNav showReports={finance} />
       <ReservationSweeper />

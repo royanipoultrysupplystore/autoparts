@@ -6,7 +6,6 @@ import { AppHeader } from "@/components/nav/app-header";
 import { EmptyState } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { VehicleCard } from "@/components/vehicles/vehicle-card";
-import { VehicleFilterBar } from "./filter-bar";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +38,6 @@ export default async function VehiclesPage({
             </Button>
           ) : undefined
         }
-        below={<VehicleFilterBar />}
       />
 
       <div className="space-y-2.5 px-3 py-3">

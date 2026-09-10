@@ -46,7 +46,7 @@ export const SheetContent = React.forwardRef<
       ref={ref}
       className={cn(
         "fixed inset-x-0 bottom-0 z-50 flex flex-col",
-        "glass rounded-t-[20px] border-t shadow-[var(--shadow-sheet)]",
+        "glass glass-top rounded-t-[20px] border-t shadow-[var(--shadow-sheet)]",
         "mx-auto w-full max-w-[640px]",
         tall ? "top-8 sm:top-12" : "max-h-[92dvh]",
         "duration-[260ms] ease-out-soft",
