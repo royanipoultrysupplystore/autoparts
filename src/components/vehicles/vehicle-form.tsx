@@ -6,6 +6,7 @@ import { CircleAlert, WandSparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field, Input, MoneyInput, Textarea } from "@/components/ui/field";
 import { SimpleSelect } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { Card, SectionHeading } from "@/components/ui/primitives";
 import { centsToInput, formatMoney, parseMoneyToCents } from "@/lib/money";
 import { todayInVancouver } from "@/lib/format";
@@ -69,6 +70,8 @@ export function VehicleForm({
   const [other, setOther] = useState(centsToInput(finance?.other_acquisition_cost_cents) || "");
 
   const [make, setMake] = useState(vehicle?.make ?? "");
+  const [model, setModel] = useState(vehicle?.model ?? "");
+  const [colour, setColour] = useState(vehicle?.exterior_colour ?? "");
   const [year, setYear] = useState(String(vehicle?.year ?? new Date().getFullYear() - 8));
   const [bodyType, setBodyType] = useState<BodyType | "">(vehicle?.body_type ?? "");
   const [transmission, setTransmission] = useState<TransmissionType | "">(
@@ -143,7 +146,11 @@ export function VehicleForm({
       filled += 1;
     }
 
-    setUncontrolled("model", d.model);
+    if (d.model && model.trim() === "") {
+      setModel(d.model);
+      filled += 1;
+    }
+
     setUncontrolled("engine", d.engine);
 
     return filled;
@@ -200,42 +207,35 @@ export function VehicleForm({
               error={fieldError("make")}
               className="col-span-2"
             >
-              <Input
+              <Combobox
                 id="make"
                 name="make"
-                list="make-options"
                 value={make}
-                onChange={(e) => setMake(e.target.value)}
+                onValueChange={setMake}
+                options={makeSuggestions}
                 placeholder="Honda"
-                autoCapitalize="words"
-                autoCorrect="off"
                 invalid={!!fieldError("make")}
+                emptyHint="Not a make we have seen — type it anyway."
               />
-              <datalist id="make-options">
-                {makeSuggestions.map((m) => (
-                  <option key={m} value={m} />
-                ))}
-              </datalist>
             </Field>
           </div>
 
           <div className="grid grid-cols-2 gap-2.5">
             <Field label="Model" htmlFor="model" required error={fieldError("model")}>
-              <Input
+              <Combobox
                 id="model"
                 name="model"
-                list="model-options"
-                defaultValue={vehicle?.model ?? ""}
+                value={model}
+                onValueChange={setModel}
+                options={modelSuggestions}
                 placeholder="Civic"
-                autoCapitalize="words"
-                autoCorrect="off"
                 invalid={!!fieldError("model")}
+                emptyHint={
+                  make
+                    ? `Not a ${make} we have seen — type it anyway.`
+                    : "Type it in; the list fills once a make is chosen."
+                }
               />
-              <datalist id="model-options">
-                {modelSuggestions.map((m) => (
-                  <option key={m} value={m} />
-                ))}
-              </datalist>
             </Field>
 
             <Field label="Trim" htmlFor="trim">
@@ -262,19 +262,14 @@ export function VehicleForm({
             </Field>
 
             <Field label="Colour" htmlFor="exterior_colour">
-              <Input
+              <Combobox
                 id="exterior_colour"
                 name="exterior_colour"
-                list="colour-options"
-                defaultValue={vehicle?.exterior_colour ?? ""}
+                value={colour}
+                onValueChange={setColour}
+                options={EXTERIOR_COLOURS}
                 placeholder="White"
-                autoCapitalize="words"
               />
-              <datalist id="colour-options">
-                {EXTERIOR_COLOURS.map((c) => (
-                  <option key={c} value={c} />
-                ))}
-              </datalist>
             </Field>
           </div>
         </Card>
