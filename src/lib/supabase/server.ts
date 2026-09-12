@@ -62,9 +62,26 @@ export const getCurrentProfile = cache(async (): Promise<Profile | null> => {
   return (data as Profile) ?? null;
 });
 
-/** owner + partner. The single source of truth for "can see money". */
+/**
+ * Money is the owner's alone: costs, profit, reports, expenses.
+ *
+ * Partners and staff run the yard -- they bring cars in, strip them,
+ * price them and sell them -- without ever seeing what a car cost or
+ * what it made. The database enforces this independently; this only
+ * decides what to render.
+ */
 export function hasFinanceAccess(profile: Profile | null): boolean {
-  return profile?.is_active === true && (profile.role === "owner" || profile.role === "partner");
+  return profile?.is_active === true && profile.role === "owner";
+}
+
+/** Editing or removing a vehicle, and managing the catalog. */
+export function canManageVehicles(profile: Profile | null): boolean {
+  return hasFinanceAccess(profile);
+}
+
+/** Bringing a car in, trimming it, pricing it, selling from it. */
+export function canWorkTheYard(profile: Profile | null): boolean {
+  return profile?.is_active === true;
 }
 
 export async function requireProfile(): Promise<Profile> {

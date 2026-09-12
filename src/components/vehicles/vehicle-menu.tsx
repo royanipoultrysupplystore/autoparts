@@ -24,10 +24,13 @@ export function VehicleMenu({
   vehicleId,
   label,
   hasParts,
+  canManage,
 }: {
   vehicleId: string;
   label: string;
   hasParts: boolean;
+  /** Editing and deleting are the owner's. Trimming is everyone's. */
+  canManage: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -105,12 +108,14 @@ export function VehicleMenu({
               "duration-150 ease-out-soft",
             )}
           >
-            <DropdownMenu.Item asChild className={cn(itemClass, "text-ink")}>
-              <Link href={`/vehicles/${vehicleId}/edit`}>
-                <Pencil className="size-[18px] text-ink-muted" />
-                Edit details
-              </Link>
-            </DropdownMenu.Item>
+            {canManage && (
+              <DropdownMenu.Item asChild className={cn(itemClass, "text-ink")}>
+                <Link href={`/vehicles/${vehicleId}/edit`}>
+                  <Pencil className="size-[18px] text-ink-muted" />
+                  Edit details
+                </Link>
+              </DropdownMenu.Item>
+            )}
 
             {hasParts && (
               <DropdownMenu.Item asChild className={cn(itemClass, "text-ink")}>
@@ -121,18 +126,22 @@ export function VehicleMenu({
               </DropdownMenu.Item>
             )}
 
-            <DropdownMenu.Separator className="my-1.5 h-px bg-line" />
+            {canManage && (
+              <>
+                <DropdownMenu.Separator className="my-1.5 h-px bg-line" />
 
-            <DropdownMenu.Item
-              onSelect={remove}
-              className={cn(
-                itemClass,
-                "text-danger data-[highlighted]:bg-danger-soft",
-              )}
-            >
-              <Trash className="size-[18px]" />
-              {pending ? "Deleting…" : "Delete vehicle"}
-            </DropdownMenu.Item>
+                <DropdownMenu.Item
+                  onSelect={remove}
+                  className={cn(
+                    itemClass,
+                    "text-danger data-[highlighted]:bg-danger-soft",
+                  )}
+                >
+                  <Trash className="size-[18px]" />
+                  {pending ? "Deleting…" : "Delete vehicle"}
+                </DropdownMenu.Item>
+              </>
+            )}
           </DropdownMenu.Content>
         </DropdownMenu.Portal>
       </DropdownMenu.Root>

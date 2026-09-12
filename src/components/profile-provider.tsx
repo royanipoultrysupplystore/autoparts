@@ -23,9 +23,14 @@ export function useProfile(): Profile {
 
 /**
  * Client-side mirror of the server rule. The database is what actually
- * stops a staff user reading costs -- this only decides what to render.
+ * stops anyone reading costs -- this only decides what to render.
  */
 export function useFinanceAccess(): boolean {
   const profile = useProfile();
-  return profile.is_active && (profile.role === "owner" || profile.role === "partner");
+  return profile.is_active && profile.role === "owner";
+}
+
+/** Editing or removing a vehicle. The owner's call. */
+export function useCanManageVehicles(): boolean {
+  return useFinanceAccess();
 }

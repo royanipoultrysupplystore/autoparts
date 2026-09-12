@@ -40,6 +40,12 @@ type Props = {
   finance?: VehicleFinance | null;
   yardMakes?: string[];
   submitLabel: string;
+  /**
+   * Whether to ask what the car cost. False for partners and staff: the
+   * fields are absent rather than disabled, because a greyed-out money
+   * box still tells you a number exists.
+   */
+  canPrice?: boolean;
 };
 
 const initial: ActionState = { ok: false };
@@ -50,6 +56,7 @@ export function VehicleForm({
   finance,
   yardMakes = [],
   submitLabel,
+  canPrice = false,
 }: Props) {
   const [state, formAction] = useActionState(action, initial);
   const isNew = !vehicle;
@@ -336,7 +343,7 @@ export function VehicleForm({
 
       {/* ---------------------------------------------- Acquisition */}
       <section className="space-y-2">
-        <SectionHeading>What it cost</SectionHeading>
+        <SectionHeading>{canPrice ? "What it cost" : "Where it came from"}</SectionHeading>
         <Card className="space-y-4 p-4">
           <div className="grid grid-cols-2 gap-2.5">
             <Field label="Bought on" htmlFor="purchase_date">
@@ -359,54 +366,63 @@ export function VehicleForm({
             </Field>
           </div>
 
-          <div className="grid grid-cols-2 gap-2.5">
-            <Field label="Purchase price" htmlFor="purchase_price">
-              <MoneyInput
-                id="purchase_price"
-                name="purchase_price"
-                value={purchase}
-                onValueChange={setPurchase}
-                placeholder="0.00"
-              />
-            </Field>
+          {canPrice ? (
+            <>
+              <div className="grid grid-cols-2 gap-2.5">
+                <Field label="Purchase price" htmlFor="purchase_price">
+                  <MoneyInput
+                    id="purchase_price"
+                    name="purchase_price"
+                    value={purchase}
+                    onValueChange={setPurchase}
+                    placeholder="0.00"
+                  />
+                </Field>
 
-            <Field label="Auction fee" htmlFor="auction_fee">
-              <MoneyInput
-                id="auction_fee"
-                name="auction_fee"
-                value={auctionFee}
-                onValueChange={setAuctionFee}
-                placeholder="0.00"
-              />
-            </Field>
+                <Field label="Auction fee" htmlFor="auction_fee">
+                  <MoneyInput
+                    id="auction_fee"
+                    name="auction_fee"
+                    value={auctionFee}
+                    onValueChange={setAuctionFee}
+                    placeholder="0.00"
+                  />
+                </Field>
 
-            <Field label="Transport" htmlFor="transport_cost">
-              <MoneyInput
-                id="transport_cost"
-                name="transport_cost"
-                value={transport}
-                onValueChange={setTransport}
-                placeholder="0.00"
-              />
-            </Field>
+                <Field label="Transport" htmlFor="transport_cost">
+                  <MoneyInput
+                    id="transport_cost"
+                    name="transport_cost"
+                    value={transport}
+                    onValueChange={setTransport}
+                    placeholder="0.00"
+                  />
+                </Field>
 
-            <Field label="Other" htmlFor="other_acquisition_cost">
-              <MoneyInput
-                id="other_acquisition_cost"
-                name="other_acquisition_cost"
-                value={other}
-                onValueChange={setOther}
-                placeholder="0.00"
-              />
-            </Field>
-          </div>
+                <Field label="Other" htmlFor="other_acquisition_cost">
+                  <MoneyInput
+                    id="other_acquisition_cost"
+                    name="other_acquisition_cost"
+                    value={other}
+                    onValueChange={setOther}
+                    placeholder="0.00"
+                  />
+                </Field>
+              </div>
 
-          <div className="flex items-baseline justify-between rounded-lg bg-accent-soft px-3.5 py-3">
-            <span className="text-[13px] font-medium text-accent">Landed cost</span>
-            <span className="tnum text-[17px] font-semibold text-accent">
-              {formatMoney(landed)}
-            </span>
-          </div>
+              <div className="flex items-baseline justify-between rounded-lg bg-accent-soft px-3.5 py-3">
+                <span className="text-[13px] font-medium text-accent">Landed cost</span>
+                <span className="tnum text-[17px] font-semibold text-accent">
+                  {formatMoney(landed)}
+                </span>
+              </div>
+            </>
+          ) : (
+            <p className="rounded-lg bg-surface-2 px-3.5 py-3 text-[13px] leading-relaxed text-ink-muted">
+              The owner records what this car cost. Everything else about it is
+              yours to fill in.
+            </p>
+          )}
         </Card>
       </section>
 

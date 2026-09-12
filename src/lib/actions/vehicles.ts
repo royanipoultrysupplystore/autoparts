@@ -2,7 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createSupabaseServer, getCurrentProfile, hasFinanceAccess } from "@/lib/supabase/server";
+import {
+  canWorkTheYard,
+  createSupabaseServer,
+  getCurrentProfile,
+  hasFinanceAccess,
+} from "@/lib/supabase/server";
 import { parseMoneyToCents } from "@/lib/money";
 import { vehicleLabel } from "@/lib/format";
 
@@ -17,7 +22,14 @@ const str = (fd: FormData, key: string): string | null => {
 
 const cents = (fd: FormData, key: string): number => parseMoneyToCents(str(fd, key) ?? "0") ?? 0;
 
-function readVehicleForm(fd: FormData) {
+/**
+ * Only the owner may put a figure against a car. For anyone else the
+ * cost fields are not on the form at all, and are forced to zero here as
+ * well -- a form is a suggestion, and this runs on the server. The RLS
+ * policy refuses a non-zero cost from a non-owner regardless, so this
+ * exists to give a clear result rather than a policy violation.
+ */
+function readVehicleForm(fd: FormData, canPrice: boolean) {
   const fieldErrors: Record<string, string> = {};
 
   const year = Number(str(fd, "year"));
@@ -51,10 +63,10 @@ function readVehicleForm(fd: FormData) {
     mileage_km,
     purchase_date: str(fd, "purchase_date"),
     source: str(fd, "source") ?? "icbc_auction",
-    purchase_price_cents: cents(fd, "purchase_price"),
-    auction_fee_cents: cents(fd, "auction_fee"),
-    transport_cost_cents: cents(fd, "transport_cost"),
-    other_acquisition_cost_cents: cents(fd, "other_acquisition_cost"),
+    purchase_price_cents: canPrice ? cents(fd, "purchase_price") : 0,
+    auction_fee_cents: canPrice ? cents(fd, "auction_fee") : 0,
+    transport_cost_cents: canPrice ? cents(fd, "transport_cost") : 0,
+    other_acquisition_cost_cents: canPrice ? cents(fd, "other_acquisition_cost") : 0,
     // Not asked when adding a car -- it is in the yard to be parted out.
     // The edit form supplies it when a car needs retiring.
     status: str(fd, "status") ?? "parting_out",
@@ -74,11 +86,11 @@ export async function createVehicle(
   formData: FormData,
 ): Promise<ActionState> {
   const profile = await getCurrentProfile();
-  if (!hasFinanceAccess(profile)) {
-    return { ok: false, error: "Only owners and partners can add a vehicle." };
+  if (!canWorkTheYard(profile)) {
+    return { ok: false, error: "You are not signed in." };
   }
 
-  const { values, fieldErrors } = readVehicleForm(formData);
+  const { values, fieldErrors } = readVehicleForm(formData, hasFinanceAccess(profile));
   if (Object.keys(fieldErrors).length) return { ok: false, fieldErrors };
 
   const supabase = await createSupabaseServer();
@@ -129,13 +141,13 @@ export async function updateVehicle(
 ): Promise<ActionState> {
   const profile = await getCurrentProfile();
   if (!hasFinanceAccess(profile)) {
-    return { ok: false, error: "Only owners and partners can edit a vehicle." };
+    return { ok: false, error: "Only the owner can change a vehicle." };
   }
 
   const id = formData.get("id");
   if (typeof id !== "string") return { ok: false, error: "Missing vehicle." };
 
-  const { values, fieldErrors } = readVehicleForm(formData);
+  const { values, fieldErrors } = readVehicleForm(formData, true);
   if (Object.keys(fieldErrors).length) return { ok: false, fieldErrors };
 
   const supabase = await createSupabaseServer();
@@ -176,7 +188,7 @@ export async function updateVehicle(
 export async function deleteVehicle(id: string): Promise<ActionState> {
   const profile = await getCurrentProfile();
   if (!hasFinanceAccess(profile)) {
-    return { ok: false, error: "Only owners and partners can delete a vehicle." };
+    return { ok: false, error: "Only the owner can delete a vehicle." };
   }
 
   const supabase = await createSupabaseServer();
@@ -223,7 +235,7 @@ export async function deleteVehicle(id: string): Promise<ActionState> {
 /** Re-run generation for a vehicle whose parts failed to create. */
 export async function regenerateParts(vehicleId: string): Promise<ActionState> {
   const profile = await getCurrentProfile();
-  if (!hasFinanceAccess(profile)) return { ok: false, error: "Not allowed." };
+  if (!canWorkTheYard(profile)) return { ok: false, error: "Not allowed." };
 
   const supabase = await createSupabaseServer();
   const { error } = await supabase.rpc("generate_parts_for_vehicle", {

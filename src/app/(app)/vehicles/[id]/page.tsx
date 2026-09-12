@@ -7,7 +7,7 @@ import {
   getVehicleParts,
   getVehiclePnl,
 } from "@/lib/data/vehicles";
-import { getCurrentProfile, hasFinanceAccess } from "@/lib/supabase/server";
+import { canWorkTheYard, getCurrentProfile, hasFinanceAccess } from "@/lib/supabase/server";
 import { categoriesFrom, getActiveCatalog } from "@/lib/data/catalog";
 import { AppHeader } from "@/components/nav/app-header";
 import { Card, DetailRow, SectionHeading, Stat } from "@/components/ui/primitives";
@@ -42,11 +42,13 @@ export default async function VehicleDetailPage({
   if (!vehicle) notFound();
 
   const finance = hasFinanceAccess(profile);
+  const worksTheYard = canWorkTheYard(profile);
+  const worksTheYardEarly = worksTheYard;
   const [parts, costs, pnl, catalog] = await Promise.all([
     getVehicleParts(id),
     finance ? getVehicleFinance(id) : Promise.resolve(null),
     finance ? getVehiclePnl(id) : Promise.resolve(null),
-    finance ? getActiveCatalog() : Promise.resolve([]),
+    worksTheYardEarly ? getActiveCatalog() : Promise.resolve([]),
   ]);
 
   const storefrontEnabled = process.env.NEXT_PUBLIC_ENABLE_STOREFRONT === "true";
@@ -68,11 +70,12 @@ export default async function VehicleDetailPage({
         subtitle={`${vehicle.stock_number}${vehicle.vin ? ` · VIN …${vehicle.vin.slice(-6)}` : ""}`}
         back={{ href: "/vehicles" }}
         action={
-          finance ? (
+          worksTheYard ? (
             <VehicleMenu
               vehicleId={id}
               label={vehicleLabel(vehicle)}
               hasParts={parts.length > 0}
+              canManage={finance}
             />
           ) : undefined
         }
@@ -167,15 +170,15 @@ export default async function VehicleDetailPage({
         {!finance && (
           <Card className="p-3.5">
             <p className="text-[13px] leading-relaxed text-ink-muted">
-              Costs and profit for this vehicle are limited to owners and partners.
-              You can still search, price, and sell every part below.
+              What this car cost is the owner&apos;s to see. Trimming, pricing and
+              selling every part below is yours.
             </p>
           </Card>
         )}
 
         {/* ------------------------------------------------ The parts */}
         <section>
-          {finance && parts.length > 0 && (
+          {worksTheYard && parts.length > 0 && (
             <div className="mb-3">
               <Button asChild variant="secondary" size="md" block>
                 <Link href={`/vehicles/${id}/trim`}>

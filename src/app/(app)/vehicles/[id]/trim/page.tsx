@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { createSupabaseServer, getCurrentProfile, hasFinanceAccess } from "@/lib/supabase/server";
+import { canWorkTheYard, createSupabaseServer, getCurrentProfile } from "@/lib/supabase/server";
 import { getVehicle } from "@/lib/data/vehicles";
 import { AppHeader } from "@/components/nav/app-header";
 import { EmptyState } from "@/components/ui/primitives";
@@ -19,7 +19,7 @@ export default async function TrimPage({
   const { id } = await params;
 
   const profile = await getCurrentProfile();
-  if (!hasFinanceAccess(profile)) redirect(`/vehicles/${id}`);
+  if (!canWorkTheYard(profile)) redirect(`/vehicles/${id}`);
 
   const vehicle = await getVehicle(id);
   if (!vehicle) notFound();

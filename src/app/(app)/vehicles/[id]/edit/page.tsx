@@ -38,6 +38,7 @@ export default async function EditVehiclePage({
         vehicle={vehicle}
         finance={finance}
         yardMakes={yardMakes}
+        canPrice
         submitLabel="Save changes"
       />
     </>

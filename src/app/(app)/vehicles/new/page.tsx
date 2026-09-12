@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getCurrentProfile, hasFinanceAccess } from "@/lib/supabase/server";
+import { canWorkTheYard, getCurrentProfile, hasFinanceAccess } from "@/lib/supabase/server";
 import { getMakesInYard } from "@/lib/data/vehicles";
 import { createVehicle } from "@/lib/actions/vehicles";
 import { AppHeader } from "@/components/nav/app-header";
@@ -12,7 +12,7 @@ export const metadata = { title: "Add a vehicle" };
 
 export default async function NewVehiclePage() {
   const profile = await getCurrentProfile();
-  if (!hasFinanceAccess(profile)) redirect("/vehicles");
+  if (!canWorkTheYard(profile)) redirect("/vehicles");
 
   const yardMakes = await getMakesInYard();
 
@@ -26,6 +26,7 @@ export default async function NewVehiclePage() {
       <VehicleForm
         action={createVehicle}
         yardMakes={yardMakes}
+        canPrice={hasFinanceAccess(profile)}
         submitLabel="Save and build the parts list"
       />
     </>

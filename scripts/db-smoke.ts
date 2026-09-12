@@ -135,20 +135,53 @@ async function main() {
     });
     check("the search RPC answers a signed-in call", search.status === 200);
 
-    const dash = await fetch(`${URL}/rest/v1/rpc/dashboard_stats`, {
+    const callDashboard = async () => {
+      const res = await fetch(`${URL}/rest/v1/rpc/dashboard_stats`, {
+        method: "POST",
+        headers: {
+          apikey: KEY,
+          Authorization: `Bearer ${body.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: "{}",
+      });
+      return { status: res.status, body: (await res.json()) as Record<string, unknown> };
+    };
+
+    // A partner runs the yard and sees none of the money.
+    const asPartner = await callDashboard();
+    check(
+      "the dashboard answers a partner",
+      asPartner.status === 200 && typeof asPartner.body.parts_available === "number",
+      JSON.stringify(asPartner.body).slice(0, 100),
+    );
+    check(
+      "the dashboard shows a partner no money",
+      !("inventory_value_cents" in asPartner.body) &&
+        asPartner.body.finance_visible === false,
+      JSON.stringify(asPartner.body).slice(0, 120),
+    );
+
+    const pnl = await fetch(`${URL}/rest/v1/rpc/vehicle_pnl`, {
       method: "POST",
       headers: {
         apikey: KEY,
         Authorization: `Bearer ${body.access_token}`,
         "Content-Type": "application/json",
       },
-      body: "{}",
+      body: JSON.stringify({ p_vehicle_id: null }),
     });
-    const dashBody = (await dash.json()) as Record<string, unknown>;
+    check("a partner cannot run the P&L", pnl.status >= 400, `got ${pnl.status}`);
+
+    // The same account as owner sees all of it -- proving the boundary is
+    // the role, not something incidental about this session.
+    await db.query(`update public.profiles set role = 'owner' where id = $1`, [userId]);
+
+    const asOwner = await callDashboard();
     check(
-      "the dashboard answers and shows money to a partner",
-      dash.status === 200 && "inventory_value_cents" in dashBody,
-      JSON.stringify(dashBody).slice(0, 100),
+      "the same account as owner does see money",
+      asOwner.status === 200 && "inventory_value_cents" in asOwner.body,
+      JSON.stringify(asOwner.body).slice(0, 120),
     );
   } finally {
     if (userId) {

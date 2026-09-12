@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Car, Plus } from "lucide-react";
 import { listVehicles } from "@/lib/data/vehicles";
-import { getCurrentProfile, hasFinanceAccess } from "@/lib/supabase/server";
+import { canWorkTheYard, getCurrentProfile } from "@/lib/supabase/server";
 import { AppHeader } from "@/components/nav/app-header";
 import { EmptyState } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ export default async function VehiclesPage({
 }) {
   const params = await searchParams;
   const profile = await getCurrentProfile();
-  const finance = hasFinanceAccess(profile);
+  const canAdd = canWorkTheYard(profile);
 
   const statusFilter =
     params.status && params.status !== "all" ? params.status.split(",") : undefined;
@@ -29,7 +29,7 @@ export default async function VehiclesPage({
         title="Vehicles"
         subtitle={`${vehicles.length} ${vehicles.length === 1 ? "vehicle" : "vehicles"}`}
         action={
-          finance ? (
+          canAdd ? (
             <Button asChild size="sm" variant="subtle">
               <Link href="/vehicles/new">
                 <Plus className="size-4" />
@@ -55,7 +55,7 @@ export default async function VehiclesPage({
               title="No vehicles yet"
               body="Add the first car from the auction. The system will build its whole parts list for you, and you trim off what it doesn't have."
               action={
-                finance ? { label: "Add a vehicle", href: "/vehicles/new" } : undefined
+                canAdd ? { label: "Add a vehicle", href: "/vehicles/new" } : undefined
               }
             />
           )

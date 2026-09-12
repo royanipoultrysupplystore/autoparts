@@ -16,7 +16,7 @@ import { SIDE_LABELS } from "@/lib/format";
 import { bulkSetPrices, publishParts } from "@/lib/actions/parts";
 import { PartSheet, type SheetPart } from "@/components/parts/part-sheet";
 import { AddPartSheet } from "@/components/parts/add-part-sheet";
-import { useFinanceAccess } from "@/components/profile-provider";
+import { useFinanceAccess, useProfile } from "@/components/profile-provider";
 import type { CatalogOption, Part, PartStatus } from "@/types/db";
 
 type VehicleHead = {
@@ -43,6 +43,8 @@ export function VehicleParts({
 }) {
   const router = useRouter();
   const finance = useFinanceAccess();
+  // Everyone active works the parts; only the owner publishes them.
+  const worksTheYard = useProfile().is_active;
   const [pending, startTransition] = useTransition();
 
   const [openPart, setOpenPart] = useState<SheetPart | null>(null);
@@ -161,7 +163,7 @@ export function VehicleParts({
           body="The parts list is generated from the catalog when a vehicle is added. If it came up empty, generate it now."
           action={{ label: "Build the parts list", href: `/vehicles/${vehicle.id}/trim` }}
         />
-        {finance && (
+        {worksTheYard && (
           <AddPartSheet
             vehicleId={vehicle.id}
             catalog={catalog}
@@ -181,7 +183,7 @@ export function VehicleParts({
         <span className="text-[13px] font-semibold uppercase tracking-[0.06em] text-ink-subtle">
           {parts.length} parts
         </span>
-        {finance && selectable > 0 && (
+        {worksTheYard && selectable > 0 && (
           <button
             type="button"
             onClick={() => {
@@ -301,7 +303,8 @@ export function VehicleParts({
             </Button>
           </div>
 
-          {storefrontEnabled && (
+          {/* Putting parts in front of the public is the owner's call. */}
+          {storefrontEnabled && finance && (
             <div className="mt-2 flex gap-2">
               <Button variant="secondary" size="md" block onClick={() => publish(true)} disabled={pending}>
                 <Store className="size-[18px]" />
@@ -317,7 +320,7 @@ export function VehicleParts({
 
       {/* Adding back something the trim removed, a second one of a part,
           or something the catalog never had. */}
-      {finance && !selecting && (
+      {worksTheYard && !selecting && (
         <div className="mt-4">
           <AddPartSheet
             vehicleId={vehicle.id}

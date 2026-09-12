@@ -163,3 +163,54 @@ test("no client component imports a server-only data module", async () => {
     );
   }
 });
+
+test("no vehicle query asks the database for every column", async () => {
+  const files = await walk(SRC);
+
+  /*
+   * The cost columns on `vehicles` are revoked from every client role, so
+   * a select of every column is refused outright for anyone but the
+   * owner -- including the bare `.select()` that PostgREST reads as
+   * "return the whole row". The failure is a flat 403 on a query that
+   * looks entirely reasonable, so it is worth catching here instead.
+   */
+  const everyColumn = /from\(\s*["']vehicles["']\s*\)[\s\S]{0,400}?\.select\(\s*(\)|["']\*["'])/g;
+
+  for (const file of files) {
+    const source = code(await readFile(file, "utf8"));
+    const offences = [...source.matchAll(everyColumn)];
+
+    assert.equal(
+      offences.length,
+      0,
+      `${file.slice(SRC.length + 1)} selects every column from vehicles; ` +
+        "name the columns instead, or the cost columns will 403 for non-owners",
+    );
+  }
+});
+
+test("finance access means the owner and nobody else", async () => {
+  const checks: [string, string][] = [
+    [join("lib", "supabase", "server.ts"), "hasFinanceAccess"],
+    [join("components", "profile-provider.tsx"), "useFinanceAccess"],
+  ];
+
+  for (const [relative, fnName] of checks) {
+    const source = code(await readFile(join(SRC, relative), "utf8"));
+    const start = source.indexOf(`export function ${fnName}`);
+
+    assert.ok(start !== -1, `${relative} has no ${fnName}`);
+
+    const body = source.slice(start, source.indexOf("\n}", start));
+
+    // Partners run the yard; they do not see what it costs.
+    assert.ok(
+      !body.includes('"partner"'),
+      `${relative}: ${fnName} still grants finance access to partners`,
+    );
+    assert.ok(
+      body.includes('role === "owner"'),
+      `${relative}: ${fnName} does not restrict finance access to the owner`,
+    );
+  }
+});

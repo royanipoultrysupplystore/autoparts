@@ -463,13 +463,18 @@ async function behaviourChecks(db: PGlite): Promise<string[]> {
   // ---- Partners must see money ----------------------------------------
   await db.exec(`set request.jwt.claim.sub = '${partnerId}'`);
 
-  const partnerFinance = await db.query<{ landed_cost_cents: number }>(
+  // Money is the owner's alone now, so the partner is promoted for the
+  // remaining money assertions.
+  await db.exec(`update public.profiles set role = 'owner' where id = '${partnerId}'`);
+  await db.exec(`set request.jwt.claim.sub = '${partnerId}'`);
+
+  const ownerFinance = await db.query<{ landed_cost_cents: number }>(
     `select landed_cost_cents from public.vehicle_finance where vehicle_id = $1`,
     [vehicleId],
   );
-  if (partnerFinance.rows.length !== 1) fail("a partner cannot read vehicle_finance");
-  if (Number(partnerFinance.rows[0]?.landed_cost_cents) !== 313500) {
-    fail(`vehicle_finance returned ${partnerFinance.rows[0]?.landed_cost_cents}, expected 313500`);
+  if (ownerFinance.rows.length !== 1) fail("the owner cannot read vehicle_finance");
+  if (Number(ownerFinance.rows[0]?.landed_cost_cents) !== 313500) {
+    fail(`vehicle_finance returned ${ownerFinance.rows[0]?.landed_cost_cents}, expected 313500`);
   }
 
   const pnl = await db.query<{
@@ -564,7 +569,7 @@ async function main() {
     console.log("  ok    trim removes only what was unticked");
     console.log("  ok    a part cannot be sold twice");
     console.log("  ok    reservations hold, conflict, and expire");
-    console.log("  ok    staff see no costs, partners see all of them");
+    console.log("  ok    only the owner sees money; partners and staff run the yard");
     console.log("  ok    only the owner manages the team, and cannot strand it");
     console.log("  ok    renaming the catalog does not rewrite history");
   } else {

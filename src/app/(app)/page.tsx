@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Car, Plus, Search as SearchIcon } from "lucide-react";
 import { listVehicles } from "@/lib/data/vehicles";
-import { getCurrentProfile, hasFinanceAccess } from "@/lib/supabase/server";
+import { canWorkTheYard, getCurrentProfile } from "@/lib/supabase/server";
 import { AppHeader } from "@/components/nav/app-header";
 import { Wordmark } from "@/components/brand";
 import { EmptyState, SectionHeading } from "@/components/ui/primitives";
@@ -42,7 +42,7 @@ export default async function HomePage() {
   ]);
 
   const firstName = (profile?.full_name || "there").split(" ")[0];
-  const finance = hasFinanceAccess(profile);
+  const canAdd = canWorkTheYard(profile);
 
   return (
     <>
@@ -77,19 +77,15 @@ export default async function HomePage() {
             <EmptyState
               icon={<Car className="size-7" />}
               title="Nothing in the yard"
-              body={
-                finance
-                  ? "Add the first car from the auction. The system builds its whole parts list for you, and you trim off what it doesn't have."
-                  : "No vehicles are being parted out right now."
-              }
-              action={finance ? { label: "Add a vehicle", href: "/vehicles/new" } : undefined}
+              body="Add the first car from the auction. The system builds its whole parts list for you, and you trim off what it doesn't have."
+              action={canAdd ? { label: "Add a vehicle", href: "/vehicles/new" } : undefined}
             />
           ) : (
             vehicles.map((v) => <VehicleCard key={v.id} vehicle={v} />)
           )}
         </section>
 
-        {finance && vehicles.length > 0 && (
+        {canAdd && vehicles.length > 0 && (
           <Link
             href="/vehicles/new"
             className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-line-strong px-4 py-3.5 text-[14.5px] font-medium text-ink-muted transition-transform duration-150 ease-out-soft active:scale-[0.99] active:bg-surface-2"

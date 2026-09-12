@@ -153,7 +153,12 @@ export async function setPartStatus(
 export async function deletePart(partId: string): Promise<ActionState> {
   const profile = await getCurrentProfile();
   if (!hasFinanceAccess(profile)) {
-    return { ok: false, error: "Only owners and partners can delete a part." };
+    return {
+      ok: false,
+      error:
+        "Only the owner can delete a part on its own. Use the trim screen to take " +
+        "several off at once.",
+    };
   }
 
   const supabase = await createSupabaseServer();
