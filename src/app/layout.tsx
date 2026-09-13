@@ -39,6 +39,9 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   viewportFit: "cover",
+  // The keyboard shrinks the page instead of sitting on top of it, so a
+  // fixed sheet's footer -- and the button in it -- stays reachable.
+  interactiveWidget: "resizes-content",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#f7f6f4" },
     { media: "(prefers-color-scheme: dark)", color: "#16151a" },

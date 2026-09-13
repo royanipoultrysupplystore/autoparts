@@ -157,12 +157,19 @@ export function ExpenseForm({
                 required
                 error={fieldErrors.amount}
               >
+                {/*
+                  Not autofocused. On a phone that summons the keyboard the
+                  instant the sheet opens, and the browser scrolls the field
+                  into view -- which throws the sheet straight to its end
+                  before anyone has read a word of it. Tapping the field is
+                  one tap, and it happens when the person is ready.
+                */}
                 <MoneyInput
                   id="amount"
                   name="amount"
                   value={amount}
                   onValueChange={setAmount}
-                  autoFocus
+                  inputMode="decimal"
                   className="h-[52px] text-[20px] font-semibold"
                 />
               </Field>

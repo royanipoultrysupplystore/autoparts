@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -9,6 +10,12 @@ import { cn } from "@/lib/utils";
  *
  * Sheets rise from the bottom because that is where the thumb is. Primary
  * actions live in the footer, never the header, for the same reason.
+ *
+ * Every sheet carries its own close button. It used to rely on tapping
+ * the overlay, which on a tall sheet is a 32px strip at the very top of
+ * the screen -- and once the keyboard is up, that strip is the one part
+ * of the screen you cannot reach. A sheet you cannot leave is a stuck
+ * app, so the way out belongs in the sheet, not behind it.
  */
 
 export const Sheet = DialogPrimitive.Root;
@@ -48,7 +55,9 @@ export const SheetContent = React.forwardRef<
         "fixed inset-x-0 bottom-0 z-50 flex flex-col",
         "glass glass-top rounded-t-[20px] border-t shadow-[var(--shadow-sheet)]",
         "mx-auto w-full max-w-[640px]",
-        tall ? "top-8 sm:top-12" : "max-h-[92dvh]",
+        tall
+          ? "h-[calc(100dvh-2rem)] max-h-[calc(100dvh-2rem)] sm:h-[calc(100dvh-3rem)] sm:max-h-[calc(100dvh-3rem)]"
+          : "max-h-[92dvh]",
         "duration-[260ms] ease-out-soft",
         "data-[state=open]:animate-in data-[state=closed]:animate-out",
         "data-[state=open]:slide-in-from-bottom data-[state=closed]:slide-out-to-bottom",
@@ -56,9 +65,20 @@ export const SheetContent = React.forwardRef<
       )}
       {...props}
     >
-      {/* Grab handle: tells the user this thing drags down. */}
-      <div className="flex shrink-0 justify-center pt-2.5 pb-1">
+      {/* The handle reads as "bottom sheet"; the X is how you actually leave. */}
+      <div className="relative flex h-11 shrink-0 items-center justify-center">
         <div className="h-1 w-10 rounded-full bg-line-strong/70" />
+        <DialogPrimitive.Close
+          aria-label="Close"
+          className={cn(
+            "absolute right-1.5 flex size-9 items-center justify-center rounded-full",
+            "text-ink-muted transition-colors duration-100",
+            "active:bg-surface-2 active:text-ink",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30",
+          )}
+        >
+          <X className="size-[18px]" />
+        </DialogPrimitive.Close>
       </div>
       {children}
     </DialogPrimitive.Content>
