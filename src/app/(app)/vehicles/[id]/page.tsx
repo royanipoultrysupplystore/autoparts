@@ -222,7 +222,7 @@ export default async function VehicleDetailPage({
               <Button asChild variant="secondary" size="md" block>
                 <Link href={`/vehicles/${id}/trim`}>
                   <Scissors className="size-[18px]" />
-                  Trim the parts list
+                  Trim &amp; price the parts
                 </Link>
               </Button>
             </div>

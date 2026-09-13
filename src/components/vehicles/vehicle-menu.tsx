@@ -121,7 +121,7 @@ export function VehicleMenu({
               <DropdownMenu.Item asChild className={cn(itemClass, "text-ink")}>
                 <Link href={`/vehicles/${vehicleId}/trim`}>
                   <Scissors className="size-[18px] text-ink-muted" />
-                  Trim the parts list
+                  Trim &amp; price the parts
                 </Link>
               </DropdownMenu.Item>
             )}

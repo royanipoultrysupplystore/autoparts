@@ -9,7 +9,7 @@ import type { Part } from "@/types/db";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Trim the list" };
+export const metadata = { title: "Trim and price" };
 
 export default async function TrimPage({
   params,
@@ -30,7 +30,7 @@ export default async function TrimPage({
   // stays, and the RPC enforces that too.
   const { data: parts } = await supabase
     .from("parts")
-    .select("id, name, category, icon_key, side, catalog_id")
+    .select("id, name, category, icon_key, side, catalog_id, asking_price_cents")
     .eq("vehicle_id", id)
     .eq("status", "available")
     .order("category")
@@ -39,14 +39,14 @@ export default async function TrimPage({
 
   const rows = (parts ?? []) as (Pick<
     Part,
-    "id" | "name" | "category" | "icon_key" | "side"
+    "id" | "name" | "category" | "icon_key" | "side" | "asking_price_cents"
   > & { catalog_id: string | null })[];
 
   if (rows.length === 0) {
     return (
       <>
         <AppHeader
-          title="Trim the list"
+          title="Trim and price"
           subtitle={vehicleLabel(vehicle)}
           back={{ href: `/vehicles/${id}` }}
         />
@@ -79,13 +79,14 @@ export default async function TrimPage({
     category: r.category,
     icon_key: r.icon_key,
     side: r.side,
+    asking_price_cents: r.asking_price_cents,
     is_high_value: r.catalog_id ? highValue.has(r.catalog_id) : false,
   }));
 
   return (
     <>
       <AppHeader
-        title="Trim the list"
+        title="Trim and price"
         subtitle={`${vehicleLabel(vehicle)} · ${vehicle.stock_number}`}
         back={{ href: `/vehicles/${id}` }}
       />
@@ -93,7 +94,9 @@ export default async function TrimPage({
       <div className="border-b border-line bg-accent-soft px-4 py-3">
         <p className="text-[13.5px] leading-relaxed text-accent">
           Everything is kept by default. Untick whatever this car doesn&apos;t have
-          or arrived wrecked — those rows get deleted when you save.
+          or arrived wrecked — those rows get deleted when you save. Put a price
+          on what you keep and it will be waiting, already filled in, when
+          somebody comes to buy it.
         </p>
       </div>
 

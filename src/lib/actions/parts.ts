@@ -125,6 +125,50 @@ export async function bulkSetPrices(
   return { ok: true };
 }
 
+/**
+ * Prices many parts at once, each at its own figure.
+ *
+ * `bulkSetPrices` puts one price on a selection. This takes a price per
+ * part, which is what the trim screen produces: a whole car priced in one
+ * pass. Identical figures are grouped so a 200-part car is a handful of
+ * statements rather than 200 round trips.
+ */
+export async function setPartPrices(
+  entries: { id: string; price: string }[],
+): Promise<ActionState & { priced?: number }> {
+  const profile = await getCurrentProfile();
+  if (!profile?.is_active) return { ok: false, error: "Not signed in." };
+  if (entries.length === 0) return { ok: true, priced: 0 };
+
+  const byCents = new Map<number, string[]>();
+  for (const { id, price } of entries) {
+    const cents = parseMoneyToCents(price);
+    if (cents === null || cents < 0) continue;
+    const ids = byCents.get(cents);
+    if (ids) ids.push(id);
+    else byCents.set(cents, [id]);
+  }
+
+  if (byCents.size === 0) return { ok: true, priced: 0 };
+
+  const supabase = await createSupabaseServer();
+  let priced = 0;
+
+  for (const [cents, ids] of byCents) {
+    // A sold part keeps the price it sold at, whatever the form says.
+    const { error, count } = await supabase
+      .from("parts")
+      .update({ asking_price_cents: cents }, { count: "exact" })
+      .in("id", ids)
+      .neq("status", "sold");
+
+    if (error) return { ok: false, error: error.message };
+    priced += count ?? ids.length;
+  }
+
+  return { ok: true, priced };
+}
+
 export async function setPartStatus(
   partId: string,
   status: Exclude<PartStatus, "sold">,
