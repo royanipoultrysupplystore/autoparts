@@ -62,7 +62,12 @@ export function Combobox({
 
   // An exact match needs no list; the answer is already in the box.
   const settled = matches.length === 1 && matches[0].toLowerCase() === value.trim().toLowerCase();
-  const showList = open && matches.length > 0 && !settled;
+
+  // Opens whether or not there is anything to suggest. A field that has
+  // no suggestions yet -- the model box before a make is chosen -- used
+  // to swallow the tap and sit there, which reads as broken rather than
+  // as empty. It now opens and says why it is empty.
+  const showList = open && !settled;
 
   useEffect(() => {
     if (!open) return;
@@ -88,6 +93,8 @@ export function Combobox({
       if (event.key === "ArrowDown") setOpen(true);
       return;
     }
+    // Nothing to walk through, and `% 0` is NaN.
+    if (matches.length === 0) return;
     if (event.key === "ArrowDown") {
       event.preventDefault();
       setActive((i) => (i + 1) % matches.length);
@@ -136,6 +143,7 @@ export function Combobox({
         type="button"
         tabIndex={-1}
         aria-label="Show suggestions"
+        aria-hidden="true"
         onPointerDown={(e) => {
           // Keep focus in the field so the keyboard does not flicker.
           e.preventDefault();
@@ -159,6 +167,15 @@ export function Combobox({
             "animate-in fade-in-0 zoom-in-95 duration-150 ease-out-soft",
           )}
         >
+          {matches.length === 0 && (
+            <li
+              className="px-3 py-2.5 text-[13.5px] leading-relaxed text-ink-subtle"
+              role="presentation"
+            >
+              {emptyHint ?? "Nothing to suggest — type it in."}
+            </li>
+          )}
+
           {matches.map((option, i) => {
             const chosen = option.toLowerCase() === value.trim().toLowerCase();
             return (
@@ -188,9 +205,6 @@ export function Combobox({
         </ul>
       )}
 
-      {open && value.trim() && matches.length === 0 && emptyHint && (
-        <p className="mt-1.5 text-[12.5px] text-ink-subtle">{emptyHint}</p>
-      )}
     </div>
   );
 }

@@ -55,6 +55,21 @@ export const COMMON_MODELS: Record<string, string[]> = {
   Ram: ["1500", "2500", "ProMaster"],
 };
 
+/**
+ * Models for a make, however the make was typed.
+ *
+ * `COMMON_MODELS[make]` on its own is an exact, case-sensitive lookup:
+ * "honda" and "Honda " both miss, and the field goes silently empty. The
+ * make is free text by design, so the lookup has to meet it there.
+ */
+export function modelsForMake(make: string): string[] {
+  const key = make.trim().toLowerCase();
+  if (!key) return [];
+
+  const found = Object.keys(COMMON_MODELS).find((m) => m.toLowerCase() === key);
+  return found ? COMMON_MODELS[found] : [];
+}
+
 export const EXTERIOR_COLOURS = [
   "White", "Black", "Silver", "Grey", "Blue", "Red", "Green",
   "Brown", "Beige", "Gold", "Orange", "Yellow", "Burgundy", "Purple",

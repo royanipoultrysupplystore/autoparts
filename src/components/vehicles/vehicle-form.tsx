@@ -13,10 +13,10 @@ import { todayInVancouver } from "@/lib/format";
 import {
   BODY_TYPES,
   COMMON_MAKES,
-  COMMON_MODELS,
   DRIVETRAINS,
   EXTERIOR_COLOURS,
   FUEL_TYPES,
+  modelsForMake,
   PART_OUT_ONLY_TITLES,
   TITLE_STATUSES,
   TRANSMISSIONS,
@@ -129,7 +129,7 @@ export function VehicleForm({
     [yardMakes],
   );
 
-  const modelSuggestions = COMMON_MODELS[make] ?? [];
+  const modelSuggestions = modelsForMake(make);
   const fieldError = (key: string) => state.fieldErrors?.[key];
 
   /**
@@ -265,9 +265,9 @@ export function VehicleForm({
                 placeholder="Civic"
                 invalid={!!fieldError("model")}
                 emptyHint={
-                  make
-                    ? `Not a ${make} we have seen — type it anyway.`
-                    : "Type it in; the list fills once a make is chosen."
+                  make.trim()
+                    ? `No ${make.trim()} models on file — type it in, it will be saved.`
+                    : "Choose a make above and this fills in — or just type the model."
                 }
               />
             </Field>
