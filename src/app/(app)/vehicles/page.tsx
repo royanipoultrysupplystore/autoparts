@@ -28,6 +28,7 @@ export default async function VehiclesPage({
       <AppHeader
         title="Vehicles"
         subtitle={`${vehicles.length} ${vehicles.length === 1 ? "vehicle" : "vehicles"}`}
+        close={{ href: "/" }}
         action={
           canAdd ? (
             <Button asChild size="sm" variant="subtle">

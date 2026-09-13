@@ -93,6 +93,7 @@ export default async function ExpensesPage() {
       <AppHeader
         title="Expenses"
         subtitle="Cash out, by vehicle and overhead"
+        close={{ href: "/" }}
         action={
           <ExpenseForm vehicles={vehicleOptions} members={memberOptions} />
         }

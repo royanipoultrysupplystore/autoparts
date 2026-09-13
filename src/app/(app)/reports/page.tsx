@@ -47,6 +47,7 @@ export default async function ReportsPage({
       <AppHeader
         title="Reports"
         subtitle={monthName(year, month)}
+        close={{ href: "/" }}
         action={
           <Button asChild size="icon-sm" variant="ghost" aria-label="Export this month to CSV">
             <a href={`/api/export/monthly?y=${year}&m=${month}`}>

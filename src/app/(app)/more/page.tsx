@@ -52,7 +52,7 @@ export default async function MorePage() {
 
   return (
     <>
-      <AppHeader title="More" />
+      <AppHeader title="More" close={{ href: "/" }} />
 
       <div className="space-y-5 px-3 py-4">
         <Card className="p-4">

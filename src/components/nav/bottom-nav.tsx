@@ -83,7 +83,9 @@ export function BottomNav({ showMoney }: { showMoney: boolean }) {
         {tabs.map((tab) => (
           <li
             key={tab.href}
-            className={tab.primary ? "flex flex-1 justify-center" : "flex-1"}
+            className={
+              tab.primary ? "flex min-w-0 flex-1 justify-center" : "min-w-0 flex-1"
+            }
           >
             <Link
               href={tab.href}
@@ -93,7 +95,7 @@ export function BottomNav({ showMoney }: { showMoney: boolean }) {
               className={
                 tab.primary
                   ? "flex flex-col items-center justify-center gap-1 px-1 pb-1.5 pt-1.5"
-                  : "tap flex h-full flex-col items-center justify-center gap-1 px-1 pb-1.5 pt-2"
+                  : "tap flex h-full min-w-0 flex-col items-center justify-center gap-1 px-1 pb-1.5 pt-2"
               }
             >
               <TabInner tab={tab} active={tab.match(pathname)} />
