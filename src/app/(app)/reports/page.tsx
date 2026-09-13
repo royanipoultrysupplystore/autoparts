@@ -101,7 +101,12 @@ export default async function ReportsPage({
                 <Stat
                   label="Revenue"
                   value={formatMoney(report.revenue_cents)}
-                  sub={`${report.sales_count} parts sold`}
+                  sub={
+                    report.vehicles_sold_count > 0
+                      ? `${report.sales_count} parts · ${report.vehicles_sold_count} ` +
+                        `car${report.vehicles_sold_count === 1 ? "" : "s"} sold whole`
+                      : `${report.sales_count} parts sold`
+                  }
                   tone="positive"
                 />
                 <Stat

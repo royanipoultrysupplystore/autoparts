@@ -6,7 +6,9 @@ import type {
   PartCondition,
   PaymentMethod,
   SaleChannel,
+  TitleStatus,
   TransmissionType,
+  VehiclePlan,
   VehicleSource,
   VehicleStatus,
 } from "@/types/db";
@@ -88,7 +90,9 @@ export const FUEL_TYPES: { value: FuelType; label: string }[] = [
 
 export const VEHICLE_SOURCES: { value: VehicleSource; label: string }[] = [
   { value: "icbc_auction", label: "ICBC auction" },
+  { value: "facebook_marketplace", label: "Facebook Marketplace" },
   { value: "private", label: "Private sale" },
+  { value: "dealer", label: "Dealer" },
   { value: "other", label: "Other" },
 ];
 
@@ -97,6 +101,29 @@ export const VEHICLE_STATUSES: { value: VehicleStatus; label: string; hint: stri
   { value: "parting_out", label: "Parting out", hint: "On the lot, parts for sale" },
   { value: "depleted", label: "Depleted", hint: "Everything worth selling is gone" },
   { value: "scrapped", label: "Scrapped", hint: "Shell sold for weight" },
+  { value: "sold", label: "Sold whole", hint: "Repaired and sold as a car" },
+];
+
+/**
+ * What the paperwork says. This is not cosmetic: non-repairable and
+ * write-off cars can never be road-legal again in BC, so a car branded
+ * either one can only ever be parted out or scrapped.
+ */
+export const TITLE_STATUSES: { value: TitleStatus; label: string; hint: string }[] = [
+  { value: "unknown", label: "Not recorded", hint: "Fill it in when the paperwork turns up" },
+  { value: "salvage", label: "Salvage", hint: "Repairable — rebuilt and inspected, it can go back on the road" },
+  { value: "non_repairable", label: "Non-repairable", hint: "Parts and scrap only. Never road-legal again" },
+  { value: "write_off", label: "Write-off", hint: "Total loss paid out by the insurer" },
+  { value: "rebuilt", label: "Rebuilt", hint: "Was salvage, repaired and passed inspection" },
+  { value: "clean", label: "Clean", hint: "No brand on the title" },
+];
+
+/** A car branded either of these can never be made road-legal again. */
+export const PART_OUT_ONLY_TITLES: TitleStatus[] = ["non_repairable", "write_off"];
+
+export const VEHICLE_PLANS: { value: VehiclePlan; label: string; hint: string }[] = [
+  { value: "part_out", label: "Part it out", hint: "Strip it and sell the parts" },
+  { value: "repair_and_sell", label: "Repair and sell whole", hint: "Fix it, inspect it, sell the car" },
 ];
 
 export const CONDITIONS: { value: PartCondition; label: string; hint: string }[] = [
@@ -127,6 +154,9 @@ export const EXPENSE_CATEGORIES: {
 }[] = [
   { value: "towing", label: "Towing", scope: "both" },
   { value: "teardown_labour", label: "Teardown labour", scope: "both" },
+  { value: "repair", label: "Repair work", scope: "both" },
+  { value: "inspection", label: "Inspection", scope: "both" },
+  { value: "parts_purchase", label: "Parts bought in", scope: "both" },
   { value: "parts_cleaning", label: "Parts cleaning", scope: "both" },
   { value: "rent", label: "Rent", scope: "business" },
   { value: "utilities", label: "Utilities", scope: "business" },
@@ -135,6 +165,8 @@ export const EXPENSE_CATEGORIES: {
   { value: "fuel", label: "Fuel", scope: "both" },
   { value: "advertising", label: "Advertising", scope: "business" },
   { value: "software", label: "Software", scope: "business" },
+  { value: "storage", label: "Storage", scope: "both" },
+  { value: "disposal", label: "Disposal & dump fees", scope: "both" },
   { value: "misc", label: "Miscellaneous", scope: "both" },
 ];
 
@@ -143,6 +175,14 @@ export const EXPENSE_CATEGORY_LABEL: Record<ExpenseCategory, string> =
     ExpenseCategory,
     string
   >;
+
+export const TITLE_STATUS_LABEL: Record<TitleStatus, string> = Object.fromEntries(
+  TITLE_STATUSES.map((t) => [t.value, t.label]),
+) as Record<TitleStatus, string>;
+
+export const PLAN_LABEL: Record<VehiclePlan, string> = Object.fromEntries(
+  VEHICLE_PLANS.map((p) => [p.value, p.label]),
+) as Record<VehiclePlan, string>;
 
 export const SOURCE_LABEL: Record<VehicleSource, string> = Object.fromEntries(
   VEHICLE_SOURCES.map((s) => [s.value, s.label]),

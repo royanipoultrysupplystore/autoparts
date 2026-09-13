@@ -59,6 +59,8 @@ export async function GET(request: Request) {
   rows.push(["Total invested", csvMoney(pnl.total_invested_cents)]);
   rows.push(["Parts revenue", csvMoney(pnl.parts_revenue_cents)]);
   rows.push(["Scrap income", csvMoney(pnl.scrap_income_cents)]);
+  rows.push(["Whole-vehicle sale", csvMoney(pnl.vehicle_sale_cents)]);
+  rows.push(["Total revenue", csvMoney(pnl.total_revenue_cents)]);
   rows.push(["Gross profit", csvMoney(pnl.gross_profit_cents)]);
   rows.push(["Recovery %", pnl.recovery_pct ?? ""]);
   rows.push(["To break even", csvMoney(pnl.break_even_remaining_cents)]);

@@ -267,11 +267,39 @@ network and fall back to `/offline`.
 
 ## Roles
 
-| | Search & sell | Edit parts | Vehicle costs | Reports | Expenses | Delete | Team |
-|---|---|---|---|---|---|---|---|
-| `owner` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `partner` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
-| `staff` | ✅ | ✅ | — | — | — | — | — |
+| | Add a car | Search & sell | Edit parts | Vehicle costs | Reports | Expenses | Edit / delete a car | Team |
+|---|---|---|---|---|---|---|---|---|
+| `owner` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `partner` | ✅ | ✅ | ✅ | — | — | — | — | — |
+| `staff` | ✅ | ✅ | ✅ | — | — | — | — | — |
+
+Partners and staff run the yard: they book cars in, trim the parts list,
+price parts, and sell them. What a car cost, what it made, and whether it
+stays are the owner's. A partner adding a car simply gets no cost fields —
+and the RLS policy refuses a priced insert from them regardless, so the
+form is a convenience, not the control.
+
+---
+
+## Two ways a car makes money
+
+Every vehicle carries a **plan**, chosen when it is booked in.
+
+**Part it out** — the default, and what most ICBC salvage is for. Saving
+the car generates the full parts list; you trim it down on the next screen
+and sell from the shelf.
+
+**Repair and sell whole** — bought at auction or off Facebook Marketplace,
+fixed, inspected, and sold as a car. No parts list is generated. Repair,
+inspection, transport and anything else spent on it goes in under
+**Expenses**, against that vehicle, because those costs arrive over weeks
+rather than at the auction. What it sold for is recorded on the edit
+screen, and `vehicle_pnl()` counts it as revenue next to parts and scrap.
+
+The **title** field decides what is even possible. A car branded
+`non_repairable` or `write_off` can never be road-legal again in BC, so it
+is locked to the part-out path in the form *and* in the server action —
+neither trusts the other.
 
 ---
 

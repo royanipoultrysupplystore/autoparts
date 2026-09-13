@@ -2,13 +2,14 @@
 
 import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
-import { Search, Car, Plus, ChartColumn, Menu } from "lucide-react";
+import { Search, Car, Plus, Receipt, ChartColumn, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
- * Thumb-first navigation. Five destinations, fixed to the bottom, each a
- * 44px+ target, with Add raised in the middle where the thumb naturally
- * rests. Reports is simply absent for staff -- not disabled, absent.
+ * Thumb-first navigation. Fixed to the bottom, each tab a 44px+ target,
+ * with Add raised where the thumb naturally rests. Expenses and Reports
+ * are simply absent for anyone but the owner -- not disabled, absent, so
+ * a staff account sees four tabs and an owner six.
  *
  * Every screen behind these tabs reads live data, so a tap is always a
  * round trip. `usePathname` only changes once that finishes, which left
@@ -23,6 +24,8 @@ type Tab = {
   icon: typeof Search;
   match: (path: string) => boolean;
   primary?: boolean;
+  /** Owner-only. Money is not a tab everyone gets. */
+  finance?: boolean;
 };
 
 const TABS: Tab[] = [
@@ -46,10 +49,18 @@ const TABS: Tab[] = [
     primary: true,
   },
   {
+    href: "/expenses",
+    label: "Expenses",
+    icon: Receipt,
+    match: (p) => p.startsWith("/expenses"),
+    finance: true,
+  },
+  {
     href: "/reports",
     label: "Reports",
     icon: ChartColumn,
     match: (p) => p.startsWith("/reports"),
+    finance: true,
   },
   {
     href: "/more",
@@ -59,9 +70,9 @@ const TABS: Tab[] = [
   },
 ];
 
-export function BottomNav({ showReports }: { showReports: boolean }) {
+export function BottomNav({ showMoney }: { showMoney: boolean }) {
   const pathname = usePathname();
-  const tabs = showReports ? TABS : TABS.filter((t) => t.href !== "/reports");
+  const tabs = showMoney ? TABS : TABS.filter((t) => !t.finance);
 
   return (
     <nav
@@ -81,8 +92,8 @@ export function BottomNav({ showReports }: { showReports: boolean }) {
               aria-current={tab.match(pathname) ? "page" : undefined}
               className={
                 tab.primary
-                  ? "flex flex-col items-center justify-center gap-1 px-2 pb-1.5 pt-1.5"
-                  : "tap flex h-full flex-col items-center justify-center gap-1 px-2 pb-1.5 pt-2"
+                  ? "flex flex-col items-center justify-center gap-1 px-1 pb-1.5 pt-1.5"
+                  : "tap flex h-full flex-col items-center justify-center gap-1 px-1 pb-1.5 pt-2"
               }
             >
               <TabInner tab={tab} active={tab.match(pathname)} />
@@ -122,7 +133,7 @@ function TabInner({ tab, active }: { tab: Tab; active: boolean }) {
             strokeWidth={2.25}
           />
         </span>
-        <span className="text-[10.5px] font-medium leading-none text-ink-subtle">
+        <span className="text-[10px] font-medium leading-none text-ink-subtle">
           {tab.label}
         </span>
       </>
@@ -147,7 +158,7 @@ function TabInner({ tab, active }: { tab: Tab; active: boolean }) {
       </span>
       <span
         className={cn(
-          "text-[10.5px] leading-none transition-colors duration-150",
+          "max-w-full truncate text-[10px] leading-none transition-colors duration-150",
           lit ? "font-semibold text-accent" : "font-medium text-ink-subtle",
         )}
       >

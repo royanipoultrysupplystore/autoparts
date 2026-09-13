@@ -11,8 +11,32 @@ export type BodyType = "sedan" | "coupe" | "hatchback" | "suv" | "truck" | "van"
 export type TransmissionType = "auto" | "manual";
 export type DrivetrainType = "fwd" | "rwd" | "awd" | "4wd";
 export type FuelType = "gas" | "diesel" | "hybrid";
-export type VehicleSource = "icbc_auction" | "private" | "other";
-export type VehicleStatus = "incoming" | "parting_out" | "depleted" | "scrapped";
+export type VehicleSource =
+  | "icbc_auction"
+  | "private"
+  | "facebook_marketplace"
+  | "dealer"
+  | "other";
+
+export type VehicleStatus =
+  | "incoming"
+  | "parting_out"
+  | "depleted"
+  | "scrapped"
+  /** Sold whole, rather than parted out. */
+  | "sold";
+
+/** ICBC branding. What the paperwork says the car is allowed to become. */
+export type TitleStatus =
+  | "clean"
+  | "salvage"
+  | "non_repairable"
+  | "write_off"
+  | "rebuilt"
+  | "unknown";
+
+/** What the yard intends to do with it. */
+export type VehiclePlan = "part_out" | "repair_and_sell";
 
 export type PartSide =
   | "none"
@@ -35,6 +59,9 @@ export type ExpenseScope = "vehicle" | "business";
 export type ExpenseCategory =
   | "towing"
   | "teardown_labour"
+  | "repair"
+  | "inspection"
+  | "parts_purchase"
   | "parts_cleaning"
   | "rent"
   | "utilities"
@@ -43,6 +70,8 @@ export type ExpenseCategory =
   | "fuel"
   | "advertising"
   | "software"
+  | "storage"
+  | "disposal"
   | "misc";
 
 export type Profile = {
@@ -78,6 +107,11 @@ export type Vehicle = {
   source: VehicleSource;
   lot_number: string | null;
   status: VehicleStatus;
+  title_status: TitleStatus;
+  plan: VehiclePlan;
+  /** Set only when the whole car was sold. The price is finance-only. */
+  sold_on: string | null;
+  sold_to: string | null;
   notes: string | null;
   created_by: string | null;
   created_at: string;
@@ -92,6 +126,8 @@ export type VehicleFinance = {
   transport_cost_cents: number;
   other_acquisition_cost_cents: number;
   scrap_income_cents: number;
+  /** What the whole car sold for. Zero for a car being parted out. */
+  sale_price_cents: number;
   landed_cost_cents: number;
 };
 
@@ -205,12 +241,15 @@ export type VehiclePnl = {
   model: string;
   trim: string | null;
   status: VehicleStatus;
+  plan: VehiclePlan;
   purchase_date: string;
   landed_cost_cents: number;
   direct_expenses_cents: number;
   total_invested_cents: number;
   parts_revenue_cents: number;
   scrap_income_cents: number;
+  vehicle_sale_cents: number;
+  total_revenue_cents: number;
   gross_profit_cents: number;
   recovery_pct: number | null;
   parts_total: number;
@@ -228,8 +267,18 @@ export type MonthlyReport = {
   period_start: string;
   period_end: string;
   basis: "cash";
+  /** Parts plus whole vehicles. */
   revenue_cents: number;
+  parts_revenue_cents: number;
+  vehicle_sales_revenue_cents: number;
   sales_count: number;
+  vehicles_sold_count: number;
+  vehicles_sold: {
+    vehicle_id: string;
+    stock_number: string;
+    label: string;
+    amount_cents: number;
+  }[];
   vehicles_purchased_count: number;
   vehicles_landed_cost_cents: number;
   direct_vehicle_expenses_cents: number;

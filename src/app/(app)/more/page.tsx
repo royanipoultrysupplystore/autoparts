@@ -3,9 +3,7 @@ import {
   ChevronRight,
   Clock,
   LogOut,
-  Receipt,
   Users,
-  Wallet,
   Wrench,
   Store,
 } from "lucide-react";
@@ -31,7 +29,7 @@ function Row({
   note,
 }: {
   href: string;
-  icon: typeof Wallet;
+  icon: typeof Users;
   label: string;
   note?: string;
 }) {
@@ -70,16 +68,6 @@ export default async function MorePage() {
             </p>
           )}
         </Card>
-
-        {finance && (
-          <section className="space-y-2">
-            <SectionHeading>Money</SectionHeading>
-            <Card className="divide-y divide-line overflow-hidden">
-              <Row href="/expenses" icon={Receipt} label="Expenses" note="Rent, towing, tools, fuel" />
-              <Row href="/reports" icon={Wallet} label="Reports" note="Vehicle P&L and monthly" />
-            </Card>
-          </section>
-        )}
 
         <section className="space-y-2">
           <SectionHeading>Yard</SectionHeading>

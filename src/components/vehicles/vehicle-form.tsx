@@ -17,7 +17,10 @@ import {
   DRIVETRAINS,
   EXTERIOR_COLOURS,
   FUEL_TYPES,
+  PART_OUT_ONLY_TITLES,
+  TITLE_STATUSES,
   TRANSMISSIONS,
+  VEHICLE_PLANS,
   VEHICLE_SOURCES,
   VEHICLE_STATUSES,
   yearOptions,
@@ -27,9 +30,11 @@ import type {
   BodyType,
   DrivetrainType,
   FuelType,
+  TitleStatus,
   TransmissionType,
   Vehicle,
   VehicleFinance,
+  VehiclePlan,
   VehicleSource,
   VehicleStatus,
 } from "@/types/db";
@@ -80,7 +85,36 @@ export function VehicleForm({
   const [drivetrain, setDrivetrain] = useState<DrivetrainType | "">(vehicle?.drivetrain ?? "");
   const [fuel, setFuel] = useState<FuelType>(vehicle?.fuel_type ?? "gas");
   const [source, setSource] = useState<VehicleSource>(vehicle?.source ?? "icbc_auction");
-  const [status, setStatus] = useState<VehicleStatus>(vehicle?.status ?? "parting_out");
+  const [titleStatus, setTitleStatus] = useState<TitleStatus>(
+    vehicle?.title_status ?? "unknown",
+  );
+  const [chosenPlan, setChosenPlan] = useState<VehiclePlan>(vehicle?.plan ?? "part_out");
+  const [chosenStatus, setChosenStatus] = useState<VehicleStatus>(
+    vehicle?.status ?? "parting_out",
+  );
+  const [salePrice, setSalePrice] = useState(centsToInput(finance?.sale_price_cents) || "");
+
+  // A non-repairable or written-off car can never be road-legal again in
+  // BC, so "repair and sell" is not a choice that exists for it. Derived
+  // from the title rather than corrected in an effect, so the select can
+  // never render a value that is not in its own option list.
+  const partOutOnly = PART_OUT_ONLY_TITLES.includes(titleStatus);
+  const plan: VehiclePlan = partOutOnly ? "part_out" : chosenPlan;
+
+  // Likewise the statuses: a car being fixed up is never "parting out",
+  // and one being stripped is never "sold whole".
+  const statusOptions = VEHICLE_STATUSES.filter((s) =>
+    plan === "repair_and_sell"
+      ? s.value !== "parting_out" && s.value !== "depleted"
+      : s.value !== "sold",
+  );
+  const status: VehicleStatus = statusOptions.some((s) => s.value === chosenStatus)
+    ? chosenStatus
+    : plan === "repair_and_sell"
+      ? "incoming"
+      : "parting_out";
+
+  const soldWhole = plan === "repair_and_sell" && status === "sold";
 
   const landed = useMemo(
     () =>
@@ -361,6 +395,51 @@ export function VehicleForm({
             </Field>
           </div>
 
+          <Field
+            label="Title"
+            htmlFor="title_status"
+            hint="What the paperwork says. It decides what the car is allowed to become."
+          >
+            <SimpleSelect
+              id="title_status"
+              name="title_status"
+              value={titleStatus}
+              onValueChange={setTitleStatus}
+              options={TITLE_STATUSES.map((t) => ({
+                value: t.value,
+                label: t.label,
+                hint: t.hint,
+              }))}
+            />
+          </Field>
+
+          <Field label="What we&apos;ll do with it" htmlFor="plan">
+            {/*
+              Posted by the hidden input, not the select. A disabled Radix
+              select disables the hidden native one it submits through, and
+              a disabled control is left out of the form data entirely --
+              so a write-off would arrive with no plan at all.
+            */}
+            <input type="hidden" name="plan" value={plan} />
+            <SimpleSelect
+              id="plan"
+              value={plan}
+              onValueChange={setChosenPlan}
+              disabled={partOutOnly}
+              options={VEHICLE_PLANS.map((pl) => ({
+                value: pl.value,
+                label: pl.label,
+                hint: pl.hint,
+              }))}
+            />
+            {partOutOnly && (
+              <p className="text-[12.5px] leading-relaxed text-ink-subtle">
+                A {titleStatus === "write_off" ? "written-off" : "non-repairable"} car
+                cannot go back on the road, so it can only be parted out.
+              </p>
+            )}
+          </Field>
+
           {canPrice ? (
             <>
               <div className="grid grid-cols-2 gap-2.5">
@@ -411,6 +490,15 @@ export function VehicleForm({
                   {formatMoney(landed)}
                 </span>
               </div>
+
+              {plan === "repair_and_sell" && (
+                <p className="rounded-lg bg-surface-2 px-3.5 py-3 text-[13px] leading-relaxed text-ink-muted">
+                  Repair, inspection and anything else spent fixing this car goes in
+                  under <strong className="font-medium text-ink">Expenses</strong>,
+                  against this vehicle. Those costs arrive over weeks, not at the
+                  auction, so they are not part of the landed figure above.
+                </p>
+              )}
             </>
           ) : (
             <p className="rounded-lg bg-surface-2 px-3.5 py-3 text-[13px] leading-relaxed text-ink-muted">
@@ -431,13 +519,13 @@ export function VehicleForm({
             editing, which is when a car actually needs retiring.
           */}
           {!isNew && (
-            <Field label="Where it's at" htmlFor="status">
+            <Field label="Where it&apos;s at" htmlFor="status">
               <SimpleSelect
                 id="status"
                 name="status"
                 value={status}
-                onValueChange={setStatus}
-                options={VEHICLE_STATUSES.map((s) => ({
+                onValueChange={setChosenStatus}
+                options={statusOptions.map((s) => ({
                   value: s.value,
                   label: s.label,
                   hint: s.hint,
@@ -457,13 +545,87 @@ export function VehicleForm({
         </Card>
       </section>
 
-      <SubmitBar label={submitLabel} isNew={isNew} />
+      {/*
+        Only ever shown on the edit screen, for a car that was bought to
+        fix and sell, once it has actually sold. Asking a partner what a
+        car went for while it is still on jack stands is noise.
+      */}
+      {!isNew && canPrice && plan === "repair_and_sell" && (
+        <section className="space-y-2">
+          <SectionHeading>The sale</SectionHeading>
+          <Card className="space-y-4 p-4">
+            {!soldWhole && (
+              <p className="rounded-lg bg-surface-2 px-3.5 py-3 text-[13px] leading-relaxed text-ink-muted">
+                Set <strong className="font-medium text-ink">Where it&apos;s at</strong> to
+                Sold whole below once the car is gone. Fill these in now if you
+                already have the numbers.
+              </p>
+            )}
+
+            <Field label="Sold for" htmlFor="sale_price">
+              <MoneyInput
+                id="sale_price"
+                name="sale_price"
+                value={salePrice}
+                onValueChange={setSalePrice}
+                placeholder="0.00"
+              />
+            </Field>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              <Field label="Sold on" htmlFor="sold_on">
+                <Input
+                  id="sold_on"
+                  name="sold_on"
+                  type="date"
+                  defaultValue={vehicle?.sold_on ?? ""}
+                />
+              </Field>
+
+              <Field label="Sold to" htmlFor="sold_to">
+                <Input
+                  id="sold_to"
+                  name="sold_to"
+                  defaultValue={vehicle?.sold_to ?? ""}
+                  placeholder="Buyer"
+                  autoCapitalize="words"
+                />
+              </Field>
+            </div>
+
+            {soldWhole && (
+              <div className="flex items-baseline justify-between rounded-lg bg-available-soft px-3.5 py-3">
+                <span className="text-[13px] font-medium text-available">
+                  Sale less landed cost
+                </span>
+                <span className="tnum text-[17px] font-semibold text-available">
+                  {formatMoney((parseMoneyToCents(salePrice) ?? 0) - landed)}
+                </span>
+              </div>
+            )}
+          </Card>
+        </section>
+      )}
+
+      <SubmitBar label={submitLabel} isNew={isNew} plan={plan} />
     </form>
   );
 }
 
-function SubmitBar({ label, isNew }: { label: string; isNew: boolean }) {
+function SubmitBar({
+  label,
+  isNew,
+  plan,
+}: {
+  label: string;
+  isNew: boolean;
+  plan: VehiclePlan;
+}) {
   const { pending } = useFormStatus();
+
+  // A car being fixed up is not stripped, so no parts list is built for
+  // it and there is nothing to trim afterwards.
+  const buildsParts = isNew && plan === "part_out";
 
   return (
     <div className="space-y-2.5 pb-2">
@@ -471,7 +633,7 @@ function SubmitBar({ label, isNew }: { label: string; isNew: boolean }) {
         {pending ? (
           <>
             <WandSparkles className="size-5 animate-pulse" />
-            {isNew ? "Building the parts list…" : "Saving…"}
+            {buildsParts ? "Building the parts list…" : "Saving…"}
           </>
         ) : (
           label
@@ -479,8 +641,17 @@ function SubmitBar({ label, isNew }: { label: string; isNew: boolean }) {
       </Button>
       {isNew && (
         <p className="text-center text-[12.5px] leading-relaxed text-ink-subtle">
-          Saving builds the full parts list for this car. You&apos;ll trim it
-          down on the next screen.
+          {buildsParts ? (
+            <>
+              Saving builds the full parts list for this car. You&apos;ll trim it
+              down on the next screen.
+            </>
+          ) : (
+            <>
+              No parts list is built for a car you&apos;re fixing up. Put repair and
+              inspection costs against it under Expenses.
+            </>
+          )}
         </p>
       )}
     </div>

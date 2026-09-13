@@ -48,6 +48,15 @@ const COST_COLUMNS = [
   "landed_cost_cents",
 ];
 
+/**
+ * Revoked on `vehicles` the same way the rest are, but the name is not
+ * unique to them: `sales.sale_price_cents` is what a part went for, and
+ * every selling screen says it. So it is checked where the column list
+ * itself is built, and left out of the name sweep that would otherwise
+ * flag the whole sales flow.
+ */
+const VEHICLE_ONLY_COST_COLUMNS = ["scrap_income_cents", "sale_price_cents"];
+
 test("the storefront data layer cannot reach an authenticated client", async () => {
   const source = code(await readFile(join(SRC, "lib", "data", "public-shop.ts"), "utf8"));
 
@@ -137,7 +146,7 @@ test("the vehicle select list never includes a cost column", async () => {
 
   assert.ok(match, "VEHICLE_COLUMNS not found");
 
-  for (const column of COST_COLUMNS.concat("scrap_income_cents")) {
+  for (const column of [...COST_COLUMNS, ...VEHICLE_ONLY_COST_COLUMNS]) {
     assert.ok(
       !match[1].includes(column),
       `VEHICLE_COLUMNS includes ${column}, which the database has revoked`,

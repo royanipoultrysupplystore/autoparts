@@ -14,7 +14,8 @@ import type { Part, Vehicle, VehicleFinance, VehiclePnl } from "@/types/db";
 export const VEHICLE_COLUMNS =
   "id, stock_number, vin, year, make, model, trim, body_type, engine, transmission, " +
   "drivetrain, fuel_type, exterior_colour, mileage_km, purchase_date, source, " +
-  "lot_number, status, notes, created_by, created_at, updated_at";
+  "lot_number, status, title_status, plan, sold_on, sold_to, notes, created_by, " +
+  "created_at, updated_at";
 
 export type VehicleWithCounts = Vehicle & {
   parts_total: number;

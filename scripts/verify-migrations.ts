@@ -128,7 +128,8 @@ const CHECKS: Check[] = [
             and grantee = 'authenticated'
             and column_name in ('purchase_price_cents','auction_fee_cents',
                                 'transport_cost_cents','other_acquisition_cost_cents',
-                                'scrap_income_cents','landed_cost_cents')`,
+                                'scrap_income_cents','sale_price_cents',
+                                'landed_cost_cents')`,
     expect: (r) =>
       (r[0] as { n: number })?.n === 0
         ? null

@@ -36,6 +36,26 @@ function readVehicleForm(fd: FormData, canPrice: boolean) {
   const make = str(fd, "make");
   const model = str(fd, "model");
 
+  // A car branded non-repairable or written off can never be road-legal
+  // again, so it cannot be on the repair-and-sell path whatever the form
+  // said. The UI already forces this; the server does not take its word.
+  const title_status = str(fd, "title_status") ?? "unknown";
+  const plan =
+    title_status === "non_repairable" || title_status === "write_off"
+      ? "part_out"
+      : (str(fd, "plan") ?? "part_out");
+
+  // Likewise a status that does not belong to the plan.
+  const rawStatus = str(fd, "status") ?? (plan === "repair_and_sell" ? "incoming" : "parting_out");
+  const status =
+    plan === "repair_and_sell"
+      ? rawStatus === "parting_out" || rawStatus === "depleted"
+        ? "incoming"
+        : rawStatus
+      : rawStatus === "sold"
+        ? "depleted"
+        : rawStatus;
+
   if (!Number.isInteger(year) || year < 1900 || year > 2100) {
     fieldErrors.year = "Enter a model year.";
   }
@@ -63,13 +83,21 @@ function readVehicleForm(fd: FormData, canPrice: boolean) {
     mileage_km,
     purchase_date: str(fd, "purchase_date"),
     source: str(fd, "source") ?? "icbc_auction",
+    title_status,
+    plan,
     purchase_price_cents: canPrice ? cents(fd, "purchase_price") : 0,
     auction_fee_cents: canPrice ? cents(fd, "auction_fee") : 0,
     transport_cost_cents: canPrice ? cents(fd, "transport_cost") : 0,
     other_acquisition_cost_cents: canPrice ? cents(fd, "other_acquisition_cost") : 0,
+    // What the whole car went for. Only ever non-zero on a car that was
+    // repaired and sold rather than stripped, and only the owner may set
+    // it -- the RLS policy refuses a priced insert from anyone else.
+    sale_price_cents: canPrice && plan === "repair_and_sell" ? cents(fd, "sale_price") : 0,
+    sold_on: plan === "repair_and_sell" ? str(fd, "sold_on") : null,
+    sold_to: plan === "repair_and_sell" ? str(fd, "sold_to") : null,
     // Not asked when adding a car -- it is in the yard to be parted out.
     // The edit form supplies it when a car needs retiring.
-    status: str(fd, "status") ?? "parting_out",
+    status,
     notes: str(fd, "notes"),
   };
 
@@ -108,31 +136,40 @@ export async function createVehicle(
     return { ok: false, error: error.message };
   }
 
-  const { error: genError } = await supabase.rpc("generate_parts_for_vehicle", {
-    p_vehicle_id: vehicle.id,
-  });
+  // A car bought to fix and resell is never stripped, so it gets no parts
+  // list. Generating 239 rows for it would put phantom inventory in every
+  // search and drag the yard totals off.
+  const partingOut = values.plan === "part_out";
 
-  if (genError) {
-    return {
-      ok: false,
-      error:
-        `${vehicle.stock_number} was saved, but its parts could not be generated: ` +
-        `${genError.message}. Open the vehicle and try again.`,
-    };
+  if (partingOut) {
+    const { error: genError } = await supabase.rpc("generate_parts_for_vehicle", {
+      p_vehicle_id: vehicle.id,
+    });
+
+    if (genError) {
+      return {
+        ok: false,
+        error:
+          `${vehicle.stock_number} was saved, but its parts could not be generated: ` +
+          `${genError.message}. Open the vehicle and try again.`,
+      };
+    }
   }
 
   await supabase.rpc("log_activity", {
     p_entity_type: "vehicle",
     p_entity_id: vehicle.id,
     p_action: "created",
-    p_summary: `Added ${vehicleLabel(vehicle)} (${vehicle.stock_number})`,
+    p_summary:
+      `Added ${vehicleLabel(vehicle)} (${vehicle.stock_number})` +
+      (partingOut ? "" : " to repair and sell"),
     p_before: null,
-    p_after: { stock_number: vehicle.stock_number },
+    p_after: { stock_number: vehicle.stock_number, plan: values.plan },
   });
 
   revalidatePath("/vehicles");
   revalidatePath("/");
-  redirect(`/vehicles/${vehicle.id}/trim`);
+  redirect(partingOut ? `/vehicles/${vehicle.id}/trim` : `/vehicles/${vehicle.id}`);
 }
 
 export async function updateVehicle(

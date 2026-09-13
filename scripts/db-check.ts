@@ -92,7 +92,8 @@ async function structure(db: pg.Client) {
     `select count(*)::int as n from information_schema.column_privileges
       where table_name = 'vehicles' and privilege_type = 'SELECT' and grantee = 'authenticated'
         and column_name in ('purchase_price_cents','auction_fee_cents','transport_cost_cents',
-                            'other_acquisition_cost_cents','scrap_income_cents','landed_cost_cents')`,
+                            'other_acquisition_cost_cents','scrap_income_cents',
+                            'sale_price_cents','landed_cost_cents')`,
   );
   check("cost columns are revoked from authenticated", costGrants?.n === 0);
 
@@ -170,32 +171,57 @@ async function behaviour(db: pg.Client) {
   await db.query("begin");
 
   try {
-    // --- Two members, created through the real auth trigger -----------
+    // --- Three members, created through the real auth trigger ---------
     const { rows: users } = await db.query<{ id: string }>(
       `insert into auth.users (id, email, raw_user_meta_data)
-       values (gen_random_uuid(), 'check-partner@local.test',
+       values (gen_random_uuid(), 'check-owner@local.test',
+               '{"full_name":"Check Owner","role":"owner"}'::jsonb),
+              (gen_random_uuid(), 'check-partner@local.test',
                '{"full_name":"Check Partner","role":"partner"}'::jsonb),
               (gen_random_uuid(), 'check-staff@local.test',
                '{"full_name":"Check Staff","role":"staff"}'::jsonb)
        returning id`,
     );
-    const [partnerId, staffId] = users.map((u) => u.id);
+    const [ownerId, partnerId, staffId] = users.map((u) => u.id);
 
     const { rows: profiles } = await db.query<{ role: string; full_name: string }>(
       `select role::text, full_name from public.profiles
         where id = any($1::uuid[]) order by full_name`,
-      [[partnerId, staffId]],
+      [[ownerId, partnerId, staffId]],
     );
     check(
       "the auth trigger creates a profile with the right role",
-      profiles.length === 2 &&
-        profiles[0].role === "partner" &&
-        profiles[1].role === "staff",
+      profiles.length === 3 &&
+        profiles[0].role === "owner" &&
+        profiles[1].role === "partner" &&
+        profiles[2].role === "staff",
       JSON.stringify(profiles),
     );
 
-    // --- A vehicle, created by the partner as the partner -------------
-    const vehicleId = await asUser(db, partnerId, async () => {
+    // --- A vehicle. Only the owner may put a figure against one -------
+    check(
+      "a partner cannot put a price on a vehicle",
+      await expectRefused(
+        db,
+        partnerId,
+        `insert into public.vehicles (year, make, model, purchase_price_cents)
+         values (2019, 'Mazda', 'CX-5', 450000)`,
+      ),
+    );
+
+    const partnerVehicleId = await asUser(db, partnerId, async () => {
+      const { rows } = await db.query<{ id: string }>(
+        `insert into public.vehicles (year, make, model)
+         values (2019, 'Mazda', 'CX-5') returning id`,
+      );
+      return rows[0].id;
+    });
+    check(
+      "a partner can still add a vehicle without pricing it",
+      typeof partnerVehicleId === "string",
+    );
+
+    const vehicleId = await asUser(db, ownerId, async () => {
       const { rows } = await db.query<{ id: string }>(
         `insert into public.vehicles (year, make, model, trim, purchase_price_cents, auction_fee_cents)
          values (2016, 'Honda', 'Civic', 'LX', 285000, 28500) returning id`,
@@ -346,25 +372,31 @@ async function behaviour(db: pg.Client) {
     );
     check("the partner who placed the hold gets the notice", Number(notice[0].n) === 1);
 
-    // --- Staff must never see money -----------------------------------
-    const staffFinance = await asUser(db, staffId, async () => {
-      const { rows } = await db.query(`select * from public.vehicle_finance`);
-      return rows.length;
-    });
-    check("staff read zero rows from vehicle_finance", staffFinance === 0);
-
-    for (const [label, sql] of [
-      ["vehicle_pnl", `select * from public.vehicle_pnl(null)`],
-      ["monthly_report", `select public.monthly_report(2026, 1)`],
-      ["top_remaining_parts", `select * from public.top_remaining_parts($1, 5)`],
+    // --- Money is the owner's alone -----------------------------------
+    // Partners run the yard; they do not see what it cost or what it made.
+    for (const [who, id] of [
+      ["staff", staffId],
+      ["a partner", partnerId],
     ] as const) {
-      const refused = await expectRefused(
-        db,
-        staffId,
-        sql,
-        sql.includes("$1") ? [vehicleId] : [],
-      );
-      check(`staff calling ${label}() is refused`, refused);
+      const blind = await asUser(db, id, async () => {
+        const { rows } = await db.query(`select * from public.vehicle_finance`);
+        return rows.length;
+      });
+      check(`${who} reads zero rows from vehicle_finance`, blind === 0);
+
+      for (const [label, sql] of [
+        ["vehicle_pnl", `select * from public.vehicle_pnl(null)`],
+        ["monthly_report", `select public.monthly_report(2026, 1)`],
+        ["top_remaining_parts", `select * from public.top_remaining_parts($1, 5)`],
+      ] as const) {
+        const refused = await expectRefused(
+          db,
+          id,
+          sql,
+          sql.includes("$1") ? [vehicleId] : [],
+        );
+        check(`${who} calling ${label}() is refused`, refused);
+      }
     }
 
     // Writing where they have no business writing.
@@ -377,13 +409,31 @@ async function behaviour(db: pg.Client) {
       ),
     );
     check(
-      "staff cannot create a vehicle",
+      "staff cannot price a vehicle either",
       await expectRefused(
         db,
         staffId,
         `insert into public.vehicles (year, make, model, purchase_price_cents)
          values (2020, 'Toyota', 'Corolla', 500000)`,
       ),
+    );
+    // Not an error -- an RLS policy that matches no row simply updates
+    // nothing, so the proof is the row count and the untouched value.
+    const partnerEdit = await asUser(db, partnerId, async () => {
+      const r = await db.query(
+        `update public.vehicles set model = 'Accord' where id = $1`,
+        [vehicleId],
+      );
+      return r.rowCount ?? 0;
+    });
+    const { rows: stillCivic } = await db.query<{ model: string }>(
+      `select model from public.vehicles where id = $1`,
+      [vehicleId],
+    );
+    check(
+      "nobody but the owner can edit a vehicle",
+      partnerEdit === 0 && stillCivic[0].model === "Civic",
+      `${partnerEdit} rows, model is ${stillCivic[0].model}`,
     );
 
     const staffDash = await asUser(db, staffId, async () => {
@@ -402,8 +452,8 @@ async function behaviour(db: pg.Client) {
       typeof staffDash.parts_available === "number",
     );
 
-    // --- Partners must see money --------------------------------------
-    const partnerFinance = await asUser(db, partnerId, async () => {
+    // --- The owner must see money -------------------------------------
+    const ownerFinance = await asUser(db, ownerId, async () => {
       const { rows } = await db.query<{ landed_cost_cents: string }>(
         `select landed_cost_cents from public.vehicle_finance where vehicle_id = $1`,
         [vehicleId],
@@ -411,12 +461,12 @@ async function behaviour(db: pg.Client) {
       return rows;
     });
     check(
-      "a partner can read vehicle costs",
-      partnerFinance.length === 1 && Number(partnerFinance[0].landed_cost_cents) === 313500,
-      JSON.stringify(partnerFinance),
+      "the owner can read vehicle costs",
+      ownerFinance.length === 1 && Number(ownerFinance[0].landed_cost_cents) === 313500,
+      JSON.stringify(ownerFinance),
     );
 
-    const pnl = await asUser(db, partnerId, async () => {
+    const pnl = await asUser(db, ownerId, async () => {
       const { rows } = await db.query<{
         total_invested_cents: string; parts_revenue_cents: string; parts_sold: string;
       }>(`select * from public.vehicle_pnl($1)`, [vehicleId]);
@@ -430,7 +480,76 @@ async function behaviour(db: pg.Client) {
       JSON.stringify(pnl),
     );
 
-    const report = await asUser(db, partnerId, async () => {
+    // --- Bought at auction, repaired, sold whole ----------------------
+    const resaleId = await asUser(db, ownerId, async () => {
+      const { rows } = await db.query<{ id: string }>(
+        `insert into public.vehicles
+           (year, make, model, title_status, plan, status,
+            purchase_price_cents, sale_price_cents, sold_on, sold_to)
+         values (2018, 'Toyota', 'Corolla', 'salvage', 'repair_and_sell', 'sold',
+                 600000, 1150000, current_date, 'Whole-car Buyer')
+         returning id`,
+      );
+      return rows[0].id;
+    });
+
+    await asUser(db, ownerId, async () => {
+      await db.query(
+        `insert into public.expenses (scope, vehicle_id, category, amount_cents)
+         values ('vehicle', $1, 'repair', 210000),
+                ('vehicle', $1, 'inspection', 15000)`,
+        [resaleId],
+      );
+    });
+
+    const resale = await asUser(db, ownerId, async () => {
+      const { rows } = await db.query<{
+        vehicle_sale_cents: string;
+        total_revenue_cents: string;
+        total_invested_cents: string;
+        gross_profit_cents: string;
+        plan: string;
+      }>(`select * from public.vehicle_pnl($1)`, [resaleId]);
+      return rows[0];
+    });
+    check(
+      "a car sold whole counts its sale as revenue",
+      Number(resale.vehicle_sale_cents) === 1150000 &&
+        Number(resale.total_revenue_cents) === 1150000,
+      JSON.stringify(resale),
+    );
+    check(
+      "repair and inspection land as costs on that car",
+      // 600000 landed + 210000 repair + 15000 inspection = 825000
+      Number(resale.total_invested_cents) === 825000 &&
+        Number(resale.gross_profit_cents) === 325000,
+      JSON.stringify(resale),
+    );
+    check("the P&L says which path the car was on", resale.plan === "repair_and_sell");
+
+    const resaleVisible = await asUser(db, partnerId, async () => {
+      const { rows } = await db.query<{ title_status: string; plan: string }>(
+        `select title_status::text, plan::text from public.vehicles where id = $1`,
+        [resaleId],
+      );
+      return rows[0];
+    });
+    check(
+      "a partner can see the title brand and the plan",
+      resaleVisible?.title_status === "salvage" && resaleVisible?.plan === "repair_and_sell",
+      JSON.stringify(resaleVisible),
+    );
+    check(
+      "a partner still cannot read what it sold for",
+      await expectRefused(
+        db,
+        partnerId,
+        `select sale_price_cents from public.vehicles where id = $1`,
+        [resaleId],
+      ),
+    );
+
+    const report = await asUser(db, ownerId, async () => {
       const { rows } = await db.query<{ r: Record<string, unknown> }>(
         `select public.monthly_report(
            extract(year from current_date)::int,
@@ -442,6 +561,19 @@ async function behaviour(db: pg.Client) {
       "the monthly report declares its basis and carries both profit figures",
       report.basis === "cash" && "gross_profit_on_parts_sold_cents" in report,
       JSON.stringify(report).slice(0, 100),
+    );
+    check(
+      "the monthly report counts the car sold whole",
+      Number(report.vehicles_sold_count) === 1 &&
+        Number(report.vehicle_sales_revenue_cents) === 1150000 &&
+        Number(report.revenue_cents) ===
+          Number(report.parts_revenue_cents) + 1150000,
+      JSON.stringify({
+        sold: report.vehicles_sold_count,
+        whole: report.vehicle_sales_revenue_cents,
+        total: report.revenue_cents,
+        parts: report.parts_revenue_cents,
+      }),
     );
 
     // --- Staff can still do their job ---------------------------------

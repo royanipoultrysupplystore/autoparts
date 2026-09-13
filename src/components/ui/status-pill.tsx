@@ -44,6 +44,7 @@ const VEHICLE_TONE: Record<VehicleStatus, string> = {
   parting_out: "bg-available-soft text-available",
   depleted: "bg-sold-soft text-sold",
   scrapped: "bg-scrapped-soft text-scrapped",
+  sold: "bg-sold-soft text-sold",
 };
 
 const VEHICLE_LABEL: Record<VehicleStatus, string> = {
@@ -51,6 +52,7 @@ const VEHICLE_LABEL: Record<VehicleStatus, string> = {
   parting_out: "Parting out",
   depleted: "Depleted",
   scrapped: "Scrapped",
+  sold: "Sold whole",
 };
 
 export function VehicleStatusPill({

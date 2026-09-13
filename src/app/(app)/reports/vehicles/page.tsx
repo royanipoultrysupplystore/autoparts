@@ -28,7 +28,7 @@ export default async function VehiclesReportPage() {
   const rows = await getAllVehiclePnl();
 
   const invested = rows.reduce((n, r) => n + r.total_invested_cents, 0);
-  const returned = rows.reduce((n, r) => n + r.parts_revenue_cents + r.scrap_income_cents, 0);
+  const returned = rows.reduce((n, r) => n + r.total_revenue_cents, 0);
   const overall = invested > 0 ? (returned / invested) * 100 : null;
 
   return (

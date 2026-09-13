@@ -42,7 +42,7 @@ export default async function ExpensesPage() {
     supabase
       .from("vehicles")
       .select("id, stock_number, year, make, model")
-      .in("status", ["incoming", "parting_out"])
+      .in("status", ["incoming", "parting_out", "sold", "depleted"])
       .order("purchase_date", { ascending: false }),
     supabase.from("profiles").select("id, full_name").eq("is_active", true).order("full_name"),
   ]);
@@ -93,7 +93,6 @@ export default async function ExpensesPage() {
       <AppHeader
         title="Expenses"
         subtitle="Cash out, by vehicle and overhead"
-        back={{ href: "/more" }}
         action={
           <ExpenseForm vehicles={vehicleOptions} members={memberOptions} />
         }

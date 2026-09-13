@@ -46,7 +46,7 @@ export default async function AppLayout({
       <div className="mx-auto w-full max-w-[640px] pb-[calc(72px+env(safe-area-inset-bottom,0px))]">
         <PageTransition>{children}</PageTransition>
       </div>
-      <BottomNav showReports={finance} />
+      <BottomNav showMoney={finance} />
       <ReservationSweeper />
       <ServiceWorkerRegistrar />
       <InstallPrompt />

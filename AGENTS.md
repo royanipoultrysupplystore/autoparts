@@ -25,10 +25,12 @@ to a real Postgres (PGlite) and asserts each guarantee below.
    whose UPDATE carries its own status guard. Never write
    `parts.status = 'sold'` directly from application code.
 
-3. **`staff` can never see costs or profit.** The five cost columns on
-   `vehicles` are revoked from `authenticated` at the database level. Do
-   not add them to `VEHICLE_COLUMNS`. Costs come from `vehicle_finance`
-   only. Reporting functions re-check the role and raise.
+3. **Only the `owner` sees costs or profit.** The six cost columns on
+   `vehicles` — including `sale_price_cents` — are revoked from
+   `authenticated` at the database level. Do not add them to
+   `VEHICLE_COLUMNS`. Costs come from `vehicle_finance` only. Reporting
+   functions re-check the role and raise. `has_finance_access()` is
+   owner-only since `0009`; partners and staff run the yard.
 
 4. **Catalog edits never rewrite history.** `parts` snapshots `name`,
    `category`, and `icon_key`. Never join a part to its catalog entry to

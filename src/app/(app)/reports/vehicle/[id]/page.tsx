@@ -35,7 +35,7 @@ export default async function VehiclePnlPage({
 
   if (!vehicle || !pnl) notFound();
 
-  const recovered = pnl.parts_revenue_cents + pnl.scrap_income_cents;
+  const recovered = pnl.total_revenue_cents;
   const pastBreakEven = pnl.break_even_remaining_cents === 0;
   const shelfValue = topParts.reduce((n, p) => n + p.asking_price_cents, 0);
 
@@ -165,6 +165,12 @@ export default async function VehiclePnlPage({
             <dl className="divide-y divide-line">
               <DetailRow label="Parts revenue" value={formatMoney(pnl.parts_revenue_cents)} />
               <DetailRow label="Scrap income" value={formatMoney(pnl.scrap_income_cents)} />
+              {pnl.vehicle_sale_cents > 0 && (
+                <DetailRow
+                  label="Sold whole"
+                  value={formatMoney(pnl.vehicle_sale_cents)}
+                />
+              )}
               <DetailRow
                 label="Revenue per day held"
                 value={`${formatMoney(pnl.revenue_per_day_cents)} · ${pnl.days_held} days`}

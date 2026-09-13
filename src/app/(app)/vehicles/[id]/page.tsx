@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { VehicleStatusPill } from "@/components/ui/status-pill";
 import { formatMoney, formatPercent } from "@/lib/money";
 import { formatDate, formatKm, vehicleLabel } from "@/lib/format";
-import { SOURCE_LABEL } from "@/lib/vehicle-options";
+import { PLAN_LABEL, SOURCE_LABEL, TITLE_STATUS_LABEL } from "@/lib/vehicle-options";
 import { VehicleParts } from "./vehicle-parts";
 import { VehicleMenu } from "@/components/vehicles/vehicle-menu";
 import { BODY_TYPES, DRIVETRAINS, FUEL_TYPES, TRANSMISSIONS } from "@/lib/vehicle-options";
@@ -52,6 +52,10 @@ export default async function VehicleDetailPage({
   ]);
 
   const storefrontEnabled = process.env.NEXT_PUBLIC_ENABLE_STOREFRONT === "true";
+
+  // A car bought to fix and resell has no parts list of its own, so the
+  // screen leads with the sale rather than the inventory.
+  const repairing = vehicle.plan === "repair_and_sell";
 
   const spec = [
     label(BODY_TYPES, vehicle.body_type),
@@ -99,6 +103,14 @@ export default async function VehicleDetailPage({
               label="Source"
               value={`${SOURCE_LABEL[vehicle.source]}${vehicle.lot_number ? ` · ${vehicle.lot_number}` : ""}`}
             />
+            <DetailRow label="Title" value={TITLE_STATUS_LABEL[vehicle.title_status]} />
+            <DetailRow label="Plan" value={PLAN_LABEL[vehicle.plan]} />
+            {vehicle.sold_on && (
+              <DetailRow
+                label="Sold"
+                value={`${formatDate(vehicle.sold_on)}${vehicle.sold_to ? ` · ${vehicle.sold_to}` : ""}`}
+              />
+            )}
           </dl>
 
           {vehicle.notes && (
@@ -150,7 +162,12 @@ export default async function VehicleDetailPage({
               <dl className="divide-y divide-line">
                 <DetailRow label="Landed cost" value={formatMoney(pnl.landed_cost_cents)} />
                 <DetailRow label="Direct expenses" value={formatMoney(pnl.direct_expenses_cents)} />
-                <DetailRow label="Parts revenue" value={formatMoney(pnl.parts_revenue_cents)} />
+                {!repairing && (
+                  <DetailRow label="Parts revenue" value={formatMoney(pnl.parts_revenue_cents)} />
+                )}
+                {pnl.vehicle_sale_cents > 0 && (
+                  <DetailRow label="Sold whole for" value={formatMoney(pnl.vehicle_sale_cents)} />
+                )}
                 {costs && costs.scrap_income_cents > 0 && (
                   <DetailRow label="Scrap income" value={formatMoney(costs.scrap_income_cents)} />
                 )}
@@ -158,10 +175,12 @@ export default async function VehicleDetailPage({
                   label="Held"
                   value={`${pnl.days_held} days · ${formatMoney(pnl.revenue_per_day_cents)}/day`}
                 />
-                <DetailRow
-                  label="Catalogue moved"
-                  value={`${pnl.parts_sold} of ${pnl.parts_total} · ${formatPercent(pnl.pct_catalogue_moved)}`}
-                />
+                {!repairing && (
+                  <DetailRow
+                    label="Catalogue moved"
+                    value={`${pnl.parts_sold} of ${pnl.parts_total} · ${formatPercent(pnl.pct_catalogue_moved)}`}
+                  />
+                )}
               </dl>
             </Card>
           </section>
@@ -177,6 +196,26 @@ export default async function VehicleDetailPage({
         )}
 
         {/* ------------------------------------------------ The parts */}
+        {repairing && parts.length === 0 && (
+          <Card className="p-3.5">
+            <p className="text-[13.5px] leading-relaxed text-ink-muted">
+              This car is being repaired and sold whole, so no parts list was
+              built for it.
+              {finance ? (
+                <>
+                  {" "}
+                  Put repair, inspection and transport costs against it under{" "}
+                  <Link href="/expenses" className="font-medium text-accent">
+                    Expenses
+                  </Link>
+                  , and record what it sold for by editing the vehicle.
+                </>
+              ) : null}{" "}
+              If you do end up pulling parts off it, add them below.
+            </p>
+          </Card>
+        )}
+
         <section>
           {worksTheYard && parts.length > 0 && (
             <div className="mb-3">

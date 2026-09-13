@@ -33,7 +33,17 @@ export async function GET(request: Request) {
     rows.push([title]);
   };
 
-  rows.push(["Revenue", csvMoney(report.revenue_cents), `${report.sales_count} parts sold`]);
+  rows.push(["Revenue", csvMoney(report.revenue_cents), "parts and whole vehicles"]);
+  rows.push([
+    "  Parts",
+    csvMoney(report.parts_revenue_cents),
+    `${report.sales_count} parts sold`,
+  ]);
+  rows.push([
+    "  Vehicles sold whole",
+    csvMoney(report.vehicle_sales_revenue_cents),
+    `${report.vehicles_sold_count} vehicles`,
+  ]);
   rows.push([
     "Vehicles purchased",
     csvMoney(report.vehicles_landed_cost_cents),
