@@ -122,6 +122,20 @@ export default async function ReportsPage({
                 />
               </div>
 
+              {/* Revenue above is net of these; without a line saying so, a
+                  month with refunds just looks like a bad month. */}
+              {report.returns_count > 0 && (
+                <p className="px-1 text-[13px] leading-relaxed text-ink-muted">
+                  {report.returns_count} part
+                  {report.returns_count === 1 ? " was" : "s were"} returned this
+                  month —{" "}
+                  <span className="font-medium text-ink">
+                    {formatMoney(report.refunded_cents)}
+                  </span>{" "}
+                  refunded and already taken off the revenue above.
+                </p>
+              )}
+
               {/*
                 Two profit numbers sit side by side, each labelled with its
                 basis. Cash basis alone makes any month with three cars in it

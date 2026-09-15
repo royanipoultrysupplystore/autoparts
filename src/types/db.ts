@@ -180,6 +180,10 @@ export type Sale = {
   buyer_contact: string | null;
   channel: SaleChannel;
   notes: string | null;
+  /** Set when the part came back. A returned sale counts for nothing. */
+  returned_at: string | null;
+  returned_by: string | null;
+  return_reason: string | null;
   created_at: string;
 };
 
@@ -273,6 +277,8 @@ export type MonthlyReport = {
   vehicle_sales_revenue_cents: number;
   sales_count: number;
   vehicles_sold_count: number;
+  returns_count: number;
+  refunded_cents: number;
   vehicles_sold: {
     vehicle_id: string;
     stock_number: string;

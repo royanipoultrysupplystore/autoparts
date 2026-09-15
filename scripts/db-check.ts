@@ -80,13 +80,20 @@ async function structure(db: pg.Client) {
   );
   check("landed_cost_cents is a generated column", gen?.is_generated === "ALWAYS");
 
+  // A returned sale keeps its row, so the guarantee is a unique index
+  // over the live ones rather than a plain constraint. It forbids exactly
+  // as much: two open sales of the same part.
   const unique = await one(
-    `select count(*)::int as n from pg_constraint
-      where conrelid = 'public.sales'::regclass and contype = 'u'
-        and conkey = array[(select attnum from pg_attribute
-                            where attrelid = 'public.sales'::regclass and attname = 'part_id')]`,
+    `select count(*)::int as n
+       from pg_index i
+       join pg_class c on c.oid = i.indexrelid
+      where i.indrelid = 'public.sales'::regclass
+        and i.indisunique and i.indpred is not null and i.indnatts = 1
+        and i.indkey[0] = (select attnum from pg_attribute
+                           where attrelid = 'public.sales'::regclass and attname = 'part_id')
+        and c.relname = 'sales_one_live_per_part'`,
   );
-  check("a part can only ever have one sale row", unique?.n === 1);
+  check("a part can only ever have one live sale row", unique?.n === 1);
 
   const costGrants = await one(
     `select count(*)::int as n from information_schema.column_privileges
@@ -326,6 +333,90 @@ async function behaviour(db: pg.Client) {
     );
     check("exactly one sale row exists", Number(saleCount[0].n) === 1);
 
+    // --- A sale corrected, and a sale returned ------------------------
+    const corrected = await asUser(db, partnerId, async () => {
+      const { rows } = await db.query<{ r: { ok: boolean; reason?: string } }>(
+        `select public.update_sale($1, 15000, 'etransfer', 'walk_in', null, 'Buyer One', null) as r`,
+        [partId],
+      );
+      return rows[0].r;
+    });
+    check(
+      "the seller can correct their own sale",
+      corrected.ok === true,
+      JSON.stringify(corrected),
+    );
+
+    const { rows: afterFix } = await db.query<{ sale_price_cents: string; channel: string }>(
+      `select sale_price_cents, channel::text from public.sales where part_id = $1`,
+      [partId],
+    );
+    check(
+      "the correction actually landed",
+      Number(afterFix[0].sale_price_cents) === 15000 && afterFix[0].channel === "walk_in",
+      JSON.stringify(afterFix[0]),
+    );
+
+    const strangerFix = await asUser(db, staffId, async () => {
+      const { rows } = await db.query<{ r: { ok: boolean; reason?: string } }>(
+        `select public.update_sale($1, 1, 'cash', 'facebook', null, null, null) as r`,
+        [partId],
+      );
+      return rows[0].r;
+    });
+    check(
+      "somebody else's sale is not theirs to rewrite",
+      strangerFix.ok === false && strangerFix.reason === "not_allowed",
+      JSON.stringify(strangerFix),
+    );
+
+    const returned = await asUser(db, partnerId, async () => {
+      const { rows } = await db.query<{ r: { ok: boolean; refunded_cents?: string } }>(
+        `select public.return_sale($1, 'Did not fit') as r`,
+        [partId],
+      );
+      return rows[0].r;
+    });
+    check(
+      "a part can be returned and the money refunded",
+      returned.ok === true && Number(returned.refunded_cents) === 15000,
+      JSON.stringify(returned),
+    );
+
+    const { rows: backOnShelf } = await db.query<{ status: string }>(
+      `select status::text from public.parts where id = $1`,
+      [partId],
+    );
+    check(
+      "a returned part goes back on the shelf",
+      backOnShelf[0].status === "available",
+      backOnShelf[0].status,
+    );
+
+    // The whole point of keeping the row instead of deleting it.
+    const { rows: history } = await db.query<{ n: string }>(
+      `select count(*)::int as n from public.sales
+        where part_id = $1 and returned_at is not null and return_reason = 'Did not fit'`,
+      [partId],
+    );
+    check("the returned sale keeps its history", Number(history[0].n) === 1);
+
+    const resold = await asUser(db, staffId, async () => {
+      const { rows } = await db.query<{ r: { ok: boolean } }>(
+        `select public.sell_part($1, 9000, 'cash', 'Buyer Three', null, 'walk_in', null, null, null) as r`,
+        [partId],
+      );
+      return rows[0].r;
+    });
+    check("a returned part can be sold again", resold.ok === true, JSON.stringify(resold));
+
+    const { rows: live } = await db.query<{ n: string }>(
+      `select count(*)::int as n from public.sales
+        where part_id = $1 and returned_at is null`,
+      [partId],
+    );
+    check("and still has exactly one live sale", Number(live[0].n) === 1);
+
     // --- Reservations -------------------------------------------------
     const { rows: mirror } = await db.query<{ id: string }>(
       `select id from public.parts
@@ -475,9 +566,15 @@ async function behaviour(db: pg.Client) {
     check(
       "the vehicle P&L adds up",
       Number(pnl.total_invested_cents) === 313500 &&
-        Number(pnl.parts_revenue_cents) === 18000 &&
+        Number(pnl.parts_revenue_cents) === 9000 &&
         Number(pnl.parts_sold) === 1,
       JSON.stringify(pnl),
+    );
+    check(
+      "a returned sale is not revenue",
+      // 15000 was returned; only the 9000 resale counts.
+      Number(pnl.parts_revenue_cents) === 9000,
+      `parts revenue was ${pnl.parts_revenue_cents}`,
     );
 
     // --- Bought at auction, repaired, sold whole ----------------------

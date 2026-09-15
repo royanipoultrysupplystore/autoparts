@@ -156,3 +156,153 @@ function describeConflict(
     message: `That part is marked ${result.status ?? "unavailable"}.`,
   };
 }
+
+/**
+ * The sale stands; the numbers on it were wrong.
+ *
+ * A yard is not a ledger. Somebody types 180 for an 80 dollar mirror and
+ * notices at the end of the shift. The database decides who is allowed to
+ * fix it -- the seller for a day, the owner for good -- so this does not
+ * repeat that rule, it just reports what came back.
+ */
+export async function correctSale(
+  partId: string,
+  input: {
+    price: string;
+    payment: PaymentMethod;
+    channel: SaleChannel;
+    saleDate?: string | null;
+    buyerName?: string | null;
+    notes?: string | null;
+  },
+): Promise<WriteResult> {
+  const profile = await getCurrentProfile();
+  if (!profile?.is_active) return { ok: false, reason: "not_signed_in" };
+
+  const cents = parseMoneyToCents(input.price);
+  if (cents === null || cents < 0) return { ok: false, reason: "bad_price" };
+
+  const supabase = await createSupabaseServer();
+
+  const { data, error } = await supabase.rpc("update_sale", {
+    p_part_id: partId,
+    p_sale_price_cents: cents,
+    p_payment_method: input.payment,
+    p_channel: input.channel,
+    p_sale_date: input.saleDate || null,
+    p_buyer_name: input.buyerName || null,
+    p_notes: input.notes || null,
+  });
+
+  if (error) return { ok: false, reason: error.message };
+
+  const result = data as WriteResult;
+  if (result.ok) {
+    revalidatePath("/search");
+    revalidatePath("/reports");
+    revalidatePath("/activity");
+  }
+  return result;
+}
+
+/**
+ * The part came back and the money went out.
+ *
+ * The sale row is kept and marked returned rather than deleted: who sold
+ * it, for how much, and who took it back is exactly the history you want
+ * when the same buyer turns up again. Every revenue figure stops counting
+ * it, and the part goes back on the shelf where it can sell again.
+ */
+export async function returnSale(
+  partId: string,
+  reason?: string | null,
+): Promise<WriteResult> {
+  const profile = await getCurrentProfile();
+  if (!profile?.is_active) return { ok: false, reason: "not_signed_in" };
+
+  const supabase = await createSupabaseServer();
+
+  const { data, error } = await supabase.rpc("return_sale", {
+    p_part_id: partId,
+    p_reason: reason || null,
+  });
+
+  if (error) return { ok: false, reason: error.message };
+
+  const result = data as WriteResult;
+  if (result.ok) {
+    revalidatePath("/search");
+    revalidatePath("/reports");
+    revalidatePath("/activity");
+  }
+  return result;
+}
+
+export type LiveSale = {
+  id: string;
+  sale_price_cents: number;
+  sale_date: string;
+  payment_method: PaymentMethod;
+  channel: SaleChannel;
+  buyer_name: string | null;
+  notes: string | null;
+  sold_by_name: string;
+  sold_at: string;
+  /**
+   * Whether this viewer may correct or return it. Display only -- the
+   * database decides, in may_amend_sale(), and refuses regardless of what
+   * this says. It is here so the buttons can be absent rather than
+   * offered and then denied.
+   */
+  may_amend: boolean;
+};
+
+/** The sale a part is currently on, if it is on one. */
+export async function getLiveSale(partId: string): Promise<LiveSale | null> {
+  const profile = await getCurrentProfile();
+  if (!profile?.is_active) return null;
+
+  const supabase = await createSupabaseServer();
+
+  const { data } = await supabase
+    .from("sales")
+    .select(
+      "id, sale_price_cents, sale_date, payment_method, channel, buyer_name, notes, " +
+        "sold_by, created_at, profiles:sold_by (full_name)",
+    )
+    .eq("part_id", partId)
+    .is("returned_at", null)
+    .maybeSingle();
+
+  if (!data) return null;
+
+  const row = data as unknown as {
+    id: string;
+    sale_price_cents: number;
+    sale_date: string;
+    payment_method: PaymentMethod;
+    channel: SaleChannel;
+    buyer_name: string | null;
+    notes: string | null;
+    sold_by: string | null;
+    created_at: string;
+    profiles: { full_name: string } | null;
+  };
+
+  const withinADay =
+    Date.now() - new Date(row.created_at).getTime() < 24 * 60 * 60 * 1000;
+
+  return {
+    id: row.id,
+    sale_price_cents: row.sale_price_cents,
+    sale_date: row.sale_date,
+    payment_method: row.payment_method,
+    channel: row.channel,
+    buyer_name: row.buyer_name,
+    notes: row.notes,
+    sold_by_name: row.profiles?.full_name ?? "someone",
+    sold_at: row.created_at,
+    may_amend:
+      profile.role === "owner" || (row.sold_by === profile.id && withinADay),
+  };
+}

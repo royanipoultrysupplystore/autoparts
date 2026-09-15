@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Clock, MapPin, Pencil, Trash, TriangleAlert } from "lucide-react";
+import { Clock, MapPin, Pencil, ReceiptText, Trash, TriangleAlert, Undo2 } from "lucide-react";
 import {
   Sheet,
   SheetBody,
@@ -21,14 +21,40 @@ import { DetailRow, Divider } from "@/components/ui/primitives";
 import { PartIconTile } from "@/lib/icons/part-icons";
 import { toast } from "@/components/ui/toaster";
 import { centsToInput, formatMoney, parseMoneyToCents } from "@/lib/money";
-import { CONDITION_LABELS, formatDateTime, partTitle, timeAgo, timeUntil } from "@/lib/format";
-import { CONDITIONS, PAYMENT_METHODS } from "@/lib/vehicle-options";
-import { releaseReservation, reservePart, sellPart } from "@/lib/actions/sales";
+import {
+  CONDITION_LABELS,
+  formatDate,
+  formatDateTime,
+  partTitle,
+  timeAgo,
+  timeUntil,
+} from "@/lib/format";
+import {
+  CONDITIONS,
+  PAYMENT_LABEL,
+  PAYMENT_METHODS,
+  SALE_CHANNELS,
+} from "@/lib/vehicle-options";
+import {
+  correctSale,
+  getLiveSale,
+  releaseReservation,
+  reservePart,
+  returnSale,
+  sellPart,
+  type LiveSale,
+} from "@/lib/actions/sales";
 import { deletePart, updatePart } from "@/lib/actions/parts";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useFinanceAccess, useProfile } from "@/components/profile-provider";
 import { cn } from "@/lib/utils";
-import type { PartCondition, PartSide, PartStatus, PaymentMethod } from "@/types/db";
+import type {
+  PartCondition,
+  PartSide,
+  PartStatus,
+  PaymentMethod,
+  SaleChannel,
+} from "@/types/db";
 
 export type SheetPart = {
   id: string;
@@ -51,7 +77,7 @@ export type SheetPart = {
   trim?: string | null;
 };
 
-type Mode = "detail" | "sell" | "reserve" | "edit";
+type Mode = "detail" | "sell" | "reserve" | "edit" | "amend";
 
 export function PartSheet({
   part,
@@ -97,13 +123,58 @@ function PartSheetView({
 }) {
   const [mode, setMode] = useState<Mode>("detail");
 
-  // Only the edit form is long enough to want the full screen. The sell
-  // view is two fields and should sit at the bottom, close to the thumb,
-  // rather than stretching over the whole phone.
+  // A sold part carries a sale, and the sale is what you correct or hand
+  // back. It is fetched here rather than threaded through every list that
+  // opens this sheet -- the search results, the vehicle screen -- none of
+  // which have any reason to carry sale rows around.
+  const [sale, setSale] = useState<LiveSale | null>(null);
+  const [saleLoaded, setSaleLoaded] = useState(part.status !== "sold");
+
+  // Also called after a correction, so going back to the detail view
+  // shows the figure that was just saved rather than the one it replaced.
+  const loadSale = useCallback(async () => {
+    const found = await getLiveSale(part.id);
+    setSale(found);
+    setSaleLoaded(true);
+  }, [part.id]);
+
+  useEffect(() => {
+    if (part.status !== "sold") return;
+
+    let alive = true;
+    void getLiveSale(part.id).then((found) => {
+      if (!alive) return;
+      setSale(found);
+      setSaleLoaded(true);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [part.id, part.status]);
+
+  // Only the long forms want the full screen. The sell view is two fields
+  // and should sit at the bottom, close to the thumb, rather than
+  // stretching over the whole phone.
   return (
-    <SheetContent tall={mode === "edit"}>
+    <SheetContent tall={mode === "edit" || mode === "amend"}>
       {mode === "detail" && (
-        <DetailView part={part} setMode={setMode} onOpenChange={onOpenChange} onChanged={onChanged} />
+        <DetailView
+          part={part}
+          sale={sale}
+          saleLoaded={saleLoaded}
+          setMode={setMode}
+          onOpenChange={onOpenChange}
+          onChanged={onChanged}
+        />
+      )}
+      {mode === "amend" && sale && (
+        <AmendView
+          part={part}
+          sale={sale}
+          onBack={() => setMode("detail")}
+          onChanged={onChanged}
+          onCorrected={loadSale}
+        />
       )}
       {mode === "sell" && (
         <SellView part={part} onBack={() => setMode("detail")} onOpenChange={onOpenChange} onChanged={onChanged} />
@@ -121,11 +192,15 @@ function PartSheetView({
 // =====================================================================
 function DetailView({
   part,
+  sale,
+  saleLoaded,
   setMode,
   onOpenChange,
   onChanged,
 }: {
   part: SheetPart;
+  sale: LiveSale | null;
+  saleLoaded: boolean;
   setMode: (m: Mode) => void;
   onOpenChange: (open: boolean) => void;
   onChanged?: (id: string, status: PartStatus) => void;
@@ -148,6 +223,49 @@ function DetailView({
       onChanged?.(part.id, "available");
       router.refresh();
     });
+  }
+
+  function takeBack() {
+    void (async () => {
+      const yes = await confirm({
+        title: `Give back ${sale ? formatMoney(sale.sale_price_cents) : "the money"}?`,
+        body: (
+          <>
+            <strong>{part.name}</strong> goes back on the shelf and stops
+            counting as revenue everywhere it appears.
+            <br />
+            <br />
+            The sale is kept and marked returned — who sold it, for how much,
+            and that you took it back. Nothing is erased.
+          </>
+        ),
+        confirmLabel: "Returned & refunded",
+      });
+      if (!yes) return;
+
+      startTransition(async () => {
+        const result = await returnSale(part.id);
+
+        if (!result.ok) {
+          toast.error(
+            result.reason === "not_allowed"
+              ? "That sale is the owner's to reverse"
+              : result.reason === "not_sold"
+                ? "This part is not on a live sale"
+                : "Not returned",
+            { description: result.reason === "not_allowed" ? undefined : result.reason },
+          );
+          return;
+        }
+
+        toast.success(`${part.name} is back on the shelf`, {
+          description: "The refund has come off the reports.",
+        });
+        onChanged?.(part.id, "available");
+        onOpenChange(false);
+        router.refresh();
+      });
+    })();
   }
 
   function remove() {
@@ -212,11 +330,57 @@ function DetailView({
         )}
 
         {part.status === "sold" && (
-          <div className="mb-3 flex items-start gap-2.5 rounded-xl bg-sold-soft px-3.5 py-3">
-            <TriangleAlert className="mt-0.5 size-[18px] shrink-0 text-sold" />
-            <p className="text-[13px] leading-relaxed text-sold">
-              This part is sold. Its record is history now and cannot be edited.
-            </p>
+          <div className="mb-3 rounded-xl bg-sold-soft px-3.5 py-3">
+            <div className="flex items-start gap-2.5">
+              <ReceiptText className="mt-0.5 size-[18px] shrink-0 text-sold" />
+              <div className="min-w-0 flex-1 text-[13px] leading-relaxed text-sold">
+                {!saleLoaded ? (
+                  <p className="opacity-80">Looking up the sale…</p>
+                ) : sale ? (
+                  <>
+                    <p className="font-semibold">
+                      Sold for {formatMoney(sale.sale_price_cents)}
+                      {sale.buyer_name ? ` to ${sale.buyer_name}` : ""}
+                    </p>
+                    <p className="opacity-90">
+                      {formatDate(sale.sale_date)} · {sale.sold_by_name} ·{" "}
+                      {PAYMENT_LABEL[sale.payment_method]}
+                    </p>
+                  </>
+                ) : (
+                  <p>This part is sold.</p>
+                )}
+              </div>
+            </div>
+
+            {sale && sale.may_amend && (
+              <div className="mt-2.5 flex flex-wrap gap-2 pl-[28px]">
+                <button
+                  type="button"
+                  onClick={() => setMode("amend")}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-sold/30 bg-surface px-3 py-2 text-[13px] font-medium text-ink active:bg-surface-2"
+                >
+                  <Pencil className="size-3.5" />
+                  Correct the sale
+                </button>
+                <button
+                  type="button"
+                  onClick={takeBack}
+                  disabled={pending}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-sold/30 bg-surface px-3 py-2 text-[13px] font-medium text-ink active:bg-surface-2"
+                >
+                  <Undo2 className="size-3.5" />
+                  Returned &amp; refunded
+                </button>
+              </div>
+            )}
+
+            {sale && !sale.may_amend && (
+              <p className="mt-2 pl-[28px] text-[12.5px] leading-relaxed text-sold/80">
+                Corrections and returns on an older sale are the owner&apos;s to
+                make.
+              </p>
+            )}
           </div>
         )}
 
@@ -691,6 +855,183 @@ function EditView({ part, onBack }: { part: SheetPart; onBack: () => void }) {
           </Button>
           <Button size="lg" block onClick={submit} disabled={pending}>
             {pending ? "Saving…" : "Save"}
+          </Button>
+        </div>
+      </SheetFooter>
+    </>
+  );
+}
+
+// =====================================================================
+// Amend -- the sale happened, the numbers on it were wrong
+// =====================================================================
+function AmendView({
+  part,
+  sale,
+  onBack,
+  onChanged,
+  onCorrected,
+}: {
+  part: SheetPart;
+  sale: LiveSale;
+  onBack: () => void;
+  onChanged?: (partId: string, status: PartStatus) => void;
+  onCorrected: () => Promise<void>;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+
+  const [price, setPrice] = useState(centsToInput(sale.sale_price_cents));
+  const [payment, setPayment] = useState<PaymentMethod>(sale.payment_method);
+  const [channel, setChannel] = useState<SaleChannel>(sale.channel);
+  const [saleDate, setSaleDate] = useState(sale.sale_date);
+  const [buyer, setBuyer] = useState(sale.buyer_name ?? "");
+  const [notes, setNotes] = useState(sale.notes ?? "");
+
+  const cents = parseMoneyToCents(price);
+  const difference = (cents ?? sale.sale_price_cents) - sale.sale_price_cents;
+
+  function submit() {
+    startTransition(async () => {
+      const result = await correctSale(part.id, {
+        price,
+        payment,
+        channel,
+        saleDate,
+        buyerName: buyer.trim() || null,
+        notes: notes.trim() || null,
+      });
+
+      if (!result.ok) {
+        toast.error(
+          result.reason === "not_allowed"
+            ? "That sale is the owner's to correct"
+            : result.reason === "bad_price"
+              ? "Enter a price"
+              : "Not saved",
+          { description: result.reason === "not_allowed" ? undefined : result.reason },
+        );
+        return;
+      }
+
+      toast.success("Sale corrected", {
+        description:
+          difference === 0
+            ? undefined
+            : `${difference > 0 ? "Up" : "Down"} ${formatMoney(Math.abs(difference))} on the reports.`,
+      });
+      onChanged?.(part.id, "sold");
+      await onCorrected();
+      router.refresh();
+      onBack();
+    });
+  }
+
+  return (
+    <>
+      <SheetHeader>
+        <SheetTitle>Correct the sale</SheetTitle>
+        <SheetDescription>
+          {partTitle(part.name, part.side)} · sold by {sale.sold_by_name}{" "}
+          {timeAgo(sale.sold_at)}
+        </SheetDescription>
+      </SheetHeader>
+
+      <SheetBody className="space-y-4">
+        <div className="rounded-xl bg-surface-2 px-3.5 py-3">
+          <p className="text-[13px] leading-relaxed text-ink-muted">
+            This fixes what was written down. If the part came back and the money
+            went out, close this and use{" "}
+            <strong className="font-medium text-ink">Returned &amp; refunded</strong>{" "}
+            instead — that puts it back on the shelf.
+          </p>
+        </div>
+
+        <Field label="Sold for" htmlFor="amend_price">
+          <MoneyInput
+            id="amend_price"
+            value={price}
+            onValueChange={setPrice}
+            inputMode="decimal"
+            className="h-14 text-[24px] font-semibold"
+          />
+        </Field>
+
+        {difference !== 0 && cents !== null && (
+          <p
+            className={cn(
+              "-mt-2 text-[13px]",
+              difference > 0 ? "text-available" : "text-danger",
+            )}
+          >
+            {difference > 0 ? "+" : "−"}
+            {formatMoney(Math.abs(difference))} against what was recorded (
+            {formatMoney(sale.sale_price_cents)}).
+          </p>
+        )}
+
+        <div className="grid grid-cols-2 gap-2.5">
+          <Field label="Paid with" htmlFor="amend_payment">
+            <SimpleSelect
+              id="amend_payment"
+              value={payment}
+              onValueChange={setPayment}
+              options={PAYMENT_METHODS.map((m) => ({ value: m.value, label: m.label }))}
+            />
+          </Field>
+
+          <Field label="Sold on" htmlFor="amend_date">
+            <Input
+              id="amend_date"
+              type="date"
+              value={saleDate}
+              onChange={(e) => setSaleDate(e.target.value)}
+            />
+          </Field>
+        </div>
+
+        <Field label="Where from" htmlFor="amend_channel">
+          <SimpleSelect
+            id="amend_channel"
+            value={channel}
+            onValueChange={setChannel}
+            options={SALE_CHANNELS.map((c) => ({ value: c.value, label: c.label }))}
+          />
+        </Field>
+
+        <Field label="Buyer" htmlFor="amend_buyer">
+          <Input
+            id="amend_buyer"
+            value={buyer}
+            onChange={(e) => setBuyer(e.target.value)}
+            placeholder="Optional"
+            autoCapitalize="words"
+          />
+        </Field>
+
+        <Field label="Notes" htmlFor="amend_notes">
+          <Textarea
+            id="amend_notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Knocked $20 off, small scuff."
+            className="min-h-[70px]"
+          />
+        </Field>
+
+        <p className="pb-2 text-[12.5px] leading-relaxed text-ink-subtle">
+          Both figures go into the activity log, so the change is visible rather
+          than silent.
+        </p>
+      </SheetBody>
+
+      <SheetFooter>
+        <div className="flex gap-2.5">
+          <Button variant="secondary" size="lg" onClick={onBack} disabled={pending}>
+            Cancel
+          </Button>
+          <Button size="lg" block onClick={submit} disabled={pending || cents === null}>
+            {pending ? "Saving…" : "Save the correction"}
           </Button>
         </div>
       </SheetFooter>

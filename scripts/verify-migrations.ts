@@ -111,15 +111,27 @@ const CHECKS: Check[] = [
         : "landed_cost_cents is not GENERATED ALWAYS -- it could drift",
   },
   {
-    name: "sales.part_id is unique (a part cannot sell twice)",
-    sql: `select count(*)::int as n from pg_constraint
-          where conrelid = 'public.sales'::regclass and contype = 'u'
-            and conkey = array[(select attnum from pg_attribute
-                                where attrelid = 'public.sales'::regclass
-                                  and attname = 'part_id')]`,
+    name: "one LIVE sale per part (a part cannot sell twice)",
+    // A returned sale keeps its row, so the guarantee narrowed from a
+    // plain unique constraint to a unique index over the live ones. It
+    // forbids exactly as much: two open sales of the same part.
+    sql: `select count(*)::int as n
+          from pg_index i
+          join pg_class c on c.oid = i.indexrelid
+          where i.indrelid = 'public.sales'::regclass
+            and i.indisunique
+            and i.indpred is not null
+            and i.indnatts = 1
+            and i.indkey[0] = (select attnum from pg_attribute
+                               where attrelid = 'public.sales'::regclass
+                                 and attname = 'part_id')
+            and c.relname = 'sales_one_live_per_part'`,
     expect: (r) =>
-      (r[0] as { n: number })?.n === 1 ? null : "sales.part_id has no unique constraint",
+      (r[0] as { n: number })?.n === 1
+        ? null
+        : "there is no unique index stopping a part being sold twice over",
   },
+
   {
     name: "staff cannot SELECT vehicle cost columns",
     sql: `select count(*)::int as n
