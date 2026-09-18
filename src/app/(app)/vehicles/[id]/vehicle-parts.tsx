@@ -179,22 +179,37 @@ export function VehicleParts({
   return (
     <>
       {/* Selection toolbar */}
-      <div className="mb-2.5 flex items-center justify-between gap-2 px-1">
+      <div className="mb-2.5 flex items-center justify-between gap-3 px-1">
         <span className="text-[13px] font-semibold uppercase tracking-[0.06em] text-ink-subtle">
           {parts.length} parts
         </span>
-        {worksTheYard && selectable > 0 && (
-          <button
-            type="button"
-            onClick={() => {
-              setSelecting((s) => !s);
-              setSelected(new Set());
-            }}
-            className="text-[13px] font-medium text-accent"
-          >
-            {selecting ? "Done" : "Select"}
-          </button>
-        )}
+        <div className="flex shrink-0 items-center gap-3">
+          {/*
+            Adding a missing part used to sit below the list. On a freshly
+            booked car that is 239 rows down, so it was never found and the
+            app looked like it simply could not do it.
+          */}
+          {worksTheYard && !selecting && (
+            <AddPartSheet
+              vehicleId={vehicle.id}
+              catalog={catalog}
+              categories={categories}
+              compact
+            />
+          )}
+          {worksTheYard && selectable > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setSelecting((s) => !s);
+                setSelected(new Set());
+              }}
+              className="text-[13px] font-medium text-accent"
+            >
+              {selecting ? "Done" : "Select"}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="space-y-3">
@@ -315,18 +330,6 @@ export function VehicleParts({
               </Button>
             </div>
           )}
-        </div>
-      )}
-
-      {/* Adding back something the trim removed, a second one of a part,
-          or something the catalog never had. */}
-      {worksTheYard && !selecting && (
-        <div className="mt-4">
-          <AddPartSheet
-            vehicleId={vehicle.id}
-            catalog={catalog}
-            categories={categories}
-          />
         </div>
       )}
 

@@ -14,6 +14,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Field, Input, MoneyInput, Textarea } from "@/components/ui/field";
 import { SimpleSelect } from "@/components/ui/select";
 import { ConditionBadge, StatusPill } from "@/components/ui/status-pill";
@@ -44,11 +45,17 @@ import {
   sellPart,
   type LiveSale,
 } from "@/lib/actions/sales";
-import { deletePart, updatePart } from "@/lib/actions/parts";
+import {
+  deletePart,
+  getAssemblyCompanions,
+  includePartsWith,
+  updatePart,
+} from "@/lib/actions/parts";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useFinanceAccess, useProfile } from "@/components/profile-provider";
 import { cn } from "@/lib/utils";
 import type {
+  AssemblyCompanion,
   PartCondition,
   PartSide,
   PartStatus,
@@ -77,7 +84,7 @@ export type SheetPart = {
   trim?: string | null;
 };
 
-type Mode = "detail" | "sell" | "reserve" | "edit" | "amend";
+type Mode = "detail" | "sell" | "reserve" | "edit" | "amend" | "sweep";
 
 export function PartSheet({
   part,
@@ -127,6 +134,9 @@ function PartSheetView({
   // back. It is fetched here rather than threaded through every list that
   // opens this sheet -- the search results, the vehicle screen -- none of
   // which have any reason to carry sale rows around.
+  // What went out bolted to this part, once it has just been sold.
+  const [companions, setCompanions] = useState<AssemblyCompanion[]>([]);
+
   const [sale, setSale] = useState<LiveSale | null>(null);
   const [saleLoaded, setSaleLoaded] = useState(part.status !== "sold");
 
@@ -177,7 +187,24 @@ function PartSheetView({
         />
       )}
       {mode === "sell" && (
-        <SellView part={part} onBack={() => setMode("detail")} onOpenChange={onOpenChange} onChanged={onChanged} />
+        <SellView
+          part={part}
+          onBack={() => setMode("detail")}
+          onOpenChange={onOpenChange}
+          onChanged={onChanged}
+          onSweep={(found) => {
+            setCompanions(found);
+            setMode("sweep");
+          }}
+        />
+      )}
+      {mode === "sweep" && (
+        <SweepView
+          part={part}
+          companions={companions}
+          onDone={() => onOpenChange(false)}
+          onChanged={onChanged}
+        />
       )}
       {mode === "reserve" && (
         <ReserveView part={part} onBack={() => setMode("detail")} onOpenChange={onOpenChange} onChanged={onChanged} />
@@ -495,11 +522,14 @@ function SellView({
   onBack,
   onOpenChange,
   onChanged,
+  onSweep,
 }: {
   part: SheetPart;
   onBack: () => void;
   onOpenChange: (open: boolean) => void;
   onChanged?: (id: string, status: PartStatus) => void;
+  /** Called instead of closing, when the part took others with it. */
+  onSweep: (companions: AssemblyCompanion[]) => void;
 }) {
   const router = useRouter();
   const profile = useProfile();
@@ -539,8 +569,18 @@ function SellView({
       if (result.ok) {
         toast.success(`Sold ${part.name}`, { description: formatMoney(cents ?? 0) });
         onChanged?.(part.id, "sold");
-        onOpenChange(false);
         router.refresh();
+
+        // An engine leaves with its head and its oil pan still bolted on.
+        // Ask before taking them off the shelf -- the yard knows what
+        // actually came off the car, and this list is only a guess.
+        const companions = await getAssemblyCompanions(part.id);
+        if (companions.length > 0) {
+          onSweep(companions);
+          return;
+        }
+
+        onOpenChange(false);
         return;
       }
 
@@ -1032,6 +1072,154 @@ function AmendView({
           </Button>
           <Button size="lg" block onClick={submit} disabled={pending || cents === null}>
             {pending ? "Saving…" : "Save the correction"}
+          </Button>
+        </div>
+      </SheetFooter>
+    </>
+  );
+}
+
+// =====================================================================
+// Sweep -- what left the yard attached to the part just sold
+// =====================================================================
+function SweepView({
+  part,
+  companions,
+  onDone,
+  onChanged,
+}: {
+  part: SheetPart;
+  companions: AssemblyCompanion[];
+  onDone: () => void;
+  onChanged?: (id: string, status: PartStatus) => void;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+
+  // Everything ticked to begin with: the common case is that the whole
+  // lump went out on the pallet. Untick what stayed behind.
+  const [going, setGoing] = useState<Set<string>>(
+    () => new Set(companions.map((c) => c.id)),
+  );
+
+  const held = companions.filter((c) => c.status === "reserved");
+  const shelfValue = companions
+    .filter((c) => going.has(c.id))
+    .reduce((n, c) => n + c.asking_price_cents, 0);
+
+  function toggle(id: string) {
+    setGoing((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function confirm() {
+    startTransition(async () => {
+      const ids = [...going];
+      const result = await includePartsWith(part.id, ids);
+
+      if (!result.ok) {
+        toast.error("The shelf was not updated", {
+          description: `${result.error} — ${part.name} is still sold.`,
+          duration: 9000,
+        });
+        onDone();
+        return;
+      }
+
+      if ((result.included ?? 0) > 0) {
+        for (const id of ids) onChanged?.(id, "included");
+        toast.success(
+          `${result.included} part${result.included === 1 ? "" : "s"} left with ${part.name}`,
+          { description: "They are off the shelf and out of search." },
+        );
+      }
+
+      router.refresh();
+      onDone();
+    });
+  }
+
+  return (
+    <>
+      <SheetHeader>
+        <SheetTitle>What went with it?</SheetTitle>
+        <SheetDescription>
+          {part.name} is sold. These were still on the shelf.
+        </SheetDescription>
+      </SheetHeader>
+
+      <SheetBody className="space-y-3">
+        <p className="rounded-xl bg-surface-2 px-3.5 py-3 text-[13px] leading-relaxed text-ink-muted">
+          Ticked parts come off the shelf and out of search. They are not
+          recorded as sales — nobody paid for them separately; their money is
+          in the price of {part.name}. Untick anything you actually kept.
+        </p>
+
+        {held.length > 0 && (
+          <div className="flex items-start gap-2.5 rounded-xl bg-reserved-soft px-3.5 py-3">
+            <Clock className="mt-0.5 size-[18px] shrink-0 text-reserved" />
+            <p className="text-[13px] leading-relaxed text-reserved">
+              {held.length === 1 ? "One of these is" : `${held.length} of these are`} on
+              hold for a buyer. Taking{" "}
+              {held.length === 1 ? "it" : "them"} off the shelf breaks that promise.
+            </p>
+          </div>
+        )}
+
+        <div className="overflow-hidden rounded-xl border border-line bg-surface">
+          {companions.map((c, i) => {
+            const ticked = going.has(c.id);
+            return (
+              <label
+                key={c.id}
+                className={cn(
+                  "flex cursor-pointer select-none items-center gap-3 px-3 py-2.5 active:bg-surface-2",
+                  i > 0 && "border-t border-line",
+                )}
+                style={{ minHeight: 48 }}
+              >
+                <Checkbox checked={ticked} onCheckedChange={() => toggle(c.id)} />
+                <span className="min-w-0 flex-1">
+                  <span
+                    className={cn(
+                      "block truncate text-[15px] leading-snug",
+                      ticked ? "text-ink" : "text-ink-subtle",
+                    )}
+                  >
+                    {partTitle(c.name, c.side)}
+                  </span>
+                  <span className="block text-[12px] leading-tight text-ink-subtle">
+                    {c.status === "reserved" ? "On hold · " : ""}
+                    {formatMoney(c.asking_price_cents)}
+                  </span>
+                </span>
+              </label>
+            );
+          })}
+        </div>
+
+        <p className="pb-2 text-[12.5px] leading-relaxed text-ink-subtle">
+          {going.size === 0
+            ? "Nothing ticked — the shelf stays as it is."
+            : `${going.size} of ${companions.length} coming off the shelf, ${formatMoney(shelfValue)} of asking price.`}
+        </p>
+      </SheetBody>
+
+      <SheetFooter>
+        <div className="flex gap-2.5">
+          <Button variant="secondary" size="lg" onClick={onDone} disabled={pending}>
+            Leave them
+          </Button>
+          <Button size="lg" block onClick={confirm} disabled={pending}>
+            {pending
+              ? "Updating…"
+              : going.size === 0
+                ? "Done"
+                : `Take ${going.size} off the shelf`}
           </Button>
         </div>
       </SheetFooter>

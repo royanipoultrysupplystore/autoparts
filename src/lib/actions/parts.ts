@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServer, getCurrentProfile, hasFinanceAccess } from "@/lib/supabase/server";
 import { parseMoneyToCents } from "@/lib/money";
 import { partTitle } from "@/lib/format";
-import type { PartCondition, PartSide, PartStatus } from "@/types/db";
+import type {
+  AssemblyCompanion, PartCondition, PartSide, PartStatus } from "@/types/db";
 
 export type ActionState = { ok: boolean; error?: string; removed?: number };
 
@@ -306,4 +307,57 @@ export async function publishParts(
   revalidatePath("/vehicles");
   revalidatePath("/shop");
   return { ok: true, removed: data as number };
+}
+
+/**
+ * What would leave the yard attached to this part, if it sold.
+ *
+ * Empty for anything that is not an assembly, which is almost everything
+ * -- so the sell flow can call it every time and only ever interrupt when
+ * there is something to say.
+ */
+export async function getAssemblyCompanions(
+  partId: string,
+): Promise<AssemblyCompanion[]> {
+  const profile = await getCurrentProfile();
+  if (!profile?.is_active) return [];
+
+  const supabase = await createSupabaseServer();
+  const { data, error } = await supabase.rpc("assembly_companions", {
+    p_part_id: partId,
+  });
+
+  if (error) return [];
+  return (data ?? []) as AssemblyCompanion[];
+}
+
+/**
+ * These went out bolted to that one.
+ *
+ * Not sold -- nobody paid for them separately and counting them as sales
+ * would invent revenue. Not scrapped -- they left in working order. They
+ * went with something else, and the shelf should stop offering them.
+ */
+export async function includePartsWith(
+  parentPartId: string,
+  partIds: string[],
+): Promise<ActionState & { included?: number }> {
+  const profile = await getCurrentProfile();
+  if (!profile?.is_active) return { ok: false, error: "Not signed in." };
+  if (partIds.length === 0) return { ok: true, included: 0 };
+
+  const supabase = await createSupabaseServer();
+  const { data, error } = await supabase.rpc("include_parts_with", {
+    p_parent_part_id: parentPartId,
+    p_part_ids: partIds,
+  });
+
+  if (error) return { ok: false, error: error.message };
+
+  const result = data as { ok: boolean; reason?: string; included?: number };
+  if (!result.ok) return { ok: false, error: result.reason ?? "Not saved." };
+
+  revalidatePath("/search");
+  revalidatePath("/");
+  return { ok: true, included: result.included ?? 0 };
 }

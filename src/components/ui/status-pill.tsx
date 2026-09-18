@@ -12,6 +12,7 @@ const PART_TONE: Record<PartStatus, string> = {
   available: "bg-available-soft text-available",
   reserved: "bg-reserved-soft text-reserved",
   sold: "bg-sold-soft text-sold",
+  included: "bg-kept-soft text-kept",
   kept: "bg-kept-soft text-kept",
   scrapped: "bg-scrapped-soft text-scrapped",
 };

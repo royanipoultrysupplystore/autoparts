@@ -50,7 +50,14 @@ export type PartSide =
   | "rear_right";
 
 export type PartCondition = "A" | "B" | "C" | "damaged";
-export type PartStatus = "available" | "reserved" | "sold" | "kept" | "scrapped";
+export type PartStatus =
+  | "available"
+  | "reserved"
+  | "sold"
+  /** Left the yard bolted to a bigger part. Earned nothing on its own. */
+  | "included"
+  | "kept"
+  | "scrapped";
 
 export type PaymentMethod = "cash" | "etransfer" | "other";
 export type SaleChannel = "facebook" | "walk_in" | "phone" | "referral" | "other";
@@ -139,9 +146,24 @@ export type PartCatalogEntry = {
   icon_key: string;
   default_sides: PartSide[];
   is_high_value: boolean;
+  /** Selling one of these offers to sweep its companions off the shelf. */
+  is_assembly: boolean;
+  /** This entry normally leaves attached to that assembly. */
+  assembly_of: string | null;
   sort_order: number;
   is_active: boolean;
   created_at: string;
+};
+
+/** A part that would leave with an assembly, as the sweep prompt shows it. */
+export type AssemblyCompanion = {
+  id: string;
+  name: string;
+  category: string;
+  icon_key: string;
+  side: PartSide;
+  status: PartStatus;
+  asking_price_cents: number;
 };
 
 export type Part = {

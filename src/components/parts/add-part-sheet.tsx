@@ -47,10 +47,13 @@ export function AddPartSheet({
   vehicleId,
   catalog,
   categories,
+  compact = false,
 }: {
   vehicleId: string;
   catalog: CatalogOption[];
   categories: string[];
+  /** A link-sized trigger, for sitting in a list header rather than under it. */
+  compact?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -132,18 +135,32 @@ export function AddPartSheet({
 
   return (
     <>
-      <Button
-        variant="secondary"
-        size="md"
-        block
-        onClick={() => {
-          reset();
-          setOpen(true);
-        }}
-      >
-        <Plus className="size-[18px]" />
-        Add a part
-      </Button>
+      {compact ? (
+        <button
+          type="button"
+          onClick={() => {
+            reset();
+            setOpen(true);
+          }}
+          className="inline-flex items-center gap-1 text-[13px] font-medium text-accent"
+        >
+          <Plus className="size-4" />
+          Add a part
+        </button>
+      ) : (
+        <Button
+          variant="secondary"
+          size="md"
+          block
+          onClick={() => {
+            reset();
+            setOpen(true);
+          }}
+        >
+          <Plus className="size-[18px]" />
+          Add a part
+        </Button>
+      )}
 
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent tall>

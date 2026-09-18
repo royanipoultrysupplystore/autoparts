@@ -333,6 +333,94 @@ async function behaviour(db: pg.Client) {
     );
     check("exactly one sale row exists", Number(saleCount[0].n) === 1);
 
+    // --- Big parts take smaller parts with them ------------------------
+    const { rows: engine } = await db.query<{ id: string }>(
+      `select p.id from public.parts p
+        where p.vehicle_id = $1 and p.name = 'Engine assembly' limit 1`,
+      [vehicleId],
+    );
+    check("the catalog has an engine assembly to sell", engine.length === 1);
+
+    if (engine.length === 1) {
+      const engineId = engine[0].id;
+
+      const companions = await asUser(db, partnerId, async () => {
+        const { rows } = await db.query<{ id: string; name: string }>(
+          `select id, name from public.assembly_companions($1)`,
+          [engineId],
+        );
+        return rows;
+      });
+      check(
+        "an engine names what would go with it",
+        companions.length >= 10 &&
+          companions.some((c) => c.name === "Cylinder head") &&
+          companions.some((c) => c.name === "Oil pan"),
+        `${companions.length}: ${companions.map((c) => c.name).slice(0, 4).join(", ")}…`,
+      );
+      check(
+        "and does not name the engine itself",
+        !companions.some((c) => c.id === engineId),
+      );
+
+      // Something a yard sells on its own must not be swept along with it.
+      check(
+        "a part sold separately is left out of the sweep",
+        !companions.some((c) => c.name === "Turbocharger"),
+      );
+
+      await asUser(db, staffId, async () => {
+        await db.query(
+          `select public.sell_part($1, 120000, 'cash', 'Engine Buyer', null, 'facebook', null, null, null)`,
+          [engineId],
+        );
+      });
+
+      // Keep one back, the way somebody would who had already pulled it.
+      const keptBack = companions[0].id;
+      const sweeping = companions.slice(1).map((c) => c.id);
+
+      const swept = await asUser(db, staffId, async () => {
+        const { rows } = await db.query<{ r: { ok: boolean; included?: number } }>(
+          `select public.include_parts_with($1, $2) as r`,
+          [engineId, sweeping],
+        );
+        return rows[0].r;
+      });
+      check(
+        "the parts that went with it come off the shelf",
+        swept.ok === true && swept.included === sweeping.length,
+        JSON.stringify(swept),
+      );
+
+      const { rows: statuses } = await db.query<{ status: string; n: string }>(
+        `select status::text, count(*)::int as n from public.parts
+          where id = any($1::uuid[]) group by status`,
+        [sweeping],
+      );
+      check(
+        "they are 'included', not sold -- nobody paid for them separately",
+        statuses.length === 1 && statuses[0].status === "included",
+        JSON.stringify(statuses),
+      );
+
+      const { rows: stillThere } = await db.query<{ status: string }>(
+        `select status::text from public.parts where id = $1`,
+        [keptBack],
+      );
+      check(
+        "the one held back stays on the shelf",
+        stillThere[0].status === "available",
+        stillThere[0].status,
+      );
+
+      const { rows: noSale } = await db.query<{ n: string }>(
+        `select count(*)::int as n from public.sales where part_id = any($1::uuid[])`,
+        [sweeping],
+      );
+      check("no sale rows were invented for them", Number(noSale[0].n) === 0);
+    }
+
     // --- A sale corrected, and a sale returned ------------------------
     const corrected = await asUser(db, partnerId, async () => {
       const { rows } = await db.query<{ r: { ok: boolean; reason?: string } }>(
@@ -559,22 +647,33 @@ async function behaviour(db: pg.Client) {
 
     const pnl = await asUser(db, ownerId, async () => {
       const { rows } = await db.query<{
-        total_invested_cents: string; parts_revenue_cents: string; parts_sold: string;
+        total_invested_cents: string;
+        parts_revenue_cents: string;
+        parts_sold: string;
+        pct_catalogue_moved: string;
       }>(`select * from public.vehicle_pnl($1)`, [vehicleId]);
       return rows[0];
     });
+    // The bumper resold at 9000 and the engine went for 120000. The 15000
+    // the bumper first sold for was returned and counts for nothing.
     check(
       "the vehicle P&L adds up",
       Number(pnl.total_invested_cents) === 313500 &&
-        Number(pnl.parts_revenue_cents) === 9000 &&
-        Number(pnl.parts_sold) === 1,
+        Number(pnl.parts_revenue_cents) === 129000 &&
+        Number(pnl.parts_sold) === 2,
       JSON.stringify(pnl),
     );
     check(
       "a returned sale is not revenue",
-      // 15000 was returned; only the 9000 resale counts.
-      Number(pnl.parts_revenue_cents) === 9000,
-      `parts revenue was ${pnl.parts_revenue_cents}`,
+      Number(pnl.parts_revenue_cents) === 129000,
+      `parts revenue was ${pnl.parts_revenue_cents}, expected 129000`,
+    );
+    check(
+      "parts that left inside the engine count as moved, not stuck",
+      // They are off the shelf, so they must not drag the catalogue-moved
+      // figure down as though the car had stopped selling.
+      Number(pnl.pct_catalogue_moved) > 0,
+      `${pnl.pct_catalogue_moved}% moved`,
     );
 
     // --- Bought at auction, repaired, sold whole ----------------------
