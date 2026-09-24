@@ -106,8 +106,9 @@ export const ResultRow = memo(function ResultRow({
         {result.sold_on && (
           <span className="mt-1 block text-[12px] text-sold">
             Sold {formatDate(result.sold_on)}
-            {result.sold_for_cents !== null
-              ? ` · ${formatMoney(result.sold_for_cents)}`
+            {result.asking_price_cents > 0 &&
+            result.asking_price_cents !== result.sold_for_cents
+              ? ` · asked ${formatMoney(result.asking_price_cents)}`
               : ""}
           </span>
         )}
@@ -124,10 +125,18 @@ export const ResultRow = memo(function ResultRow({
         <span
           className={cn(
             "tnum text-[16px] font-semibold leading-none",
-            gone ? "text-ink-subtle line-through" : "text-ink",
+            result.sold_on
+              ? "text-sold"
+              : gone
+                ? "text-ink-subtle line-through"
+                : "text-ink",
           )}
         >
-          {result.asking_price_cents > 0 ? formatMoney(result.asking_price_cents) : "—"}
+          {result.sold_on
+            ? formatMoney(result.sold_for_cents ?? 0)
+            : result.asking_price_cents > 0
+              ? formatMoney(result.asking_price_cents)
+              : "—"}
         </span>
         <StatusPill status={result.status} size="sm" />
       </span>
