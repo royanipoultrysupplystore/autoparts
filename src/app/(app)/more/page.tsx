@@ -3,6 +3,7 @@ import {
   ChevronRight,
   Clock,
   LogOut,
+  Receipt,
   Users,
   Wrench,
   Store,
@@ -73,10 +74,16 @@ export default async function MorePage() {
           <SectionHeading>Yard</SectionHeading>
           <Card className="divide-y divide-line overflow-hidden">
             <Row
+              href="/sales"
+              icon={Receipt}
+              label="Sales"
+              note="What went out, day by day"
+            />
+            <Row
               href="/activity"
               icon={Clock}
               label="Activity"
-              note="Who sold what, and when"
+              note="Who did what, and when"
             />
             <Row
               href="/catalog"

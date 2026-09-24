@@ -380,6 +380,9 @@ export default async function ReportsPage({
 
             <div className="space-y-2.5 pt-1">
               <Button asChild variant="secondary" size="lg" block>
+                <Link href="/sales?range=week">Sales, day by day</Link>
+              </Button>
+              <Button asChild variant="secondary" size="lg" block>
                 <Link href="/reports/vehicles">Every vehicle&apos;s P&amp;L</Link>
               </Button>
               <Button asChild variant="secondary" size="lg" block>
