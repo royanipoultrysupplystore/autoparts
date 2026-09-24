@@ -256,6 +256,8 @@ export type SearchResult = {
   mileage_km: number | null;
   exterior_colour: string | null;
   score: number;
+  /** A complete unit — selling it takes its own parts with it. */
+  is_assembly: boolean;
   total_count: number;
 };
 

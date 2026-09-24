@@ -1,7 +1,7 @@
 "use client";
 
 import { memo } from "react";
-import { MapPin } from "lucide-react";
+import { Boxes, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PartIconTile } from "@/lib/icons/part-icons";
 import { ConditionBadge, StatusPill } from "@/components/ui/status-pill";
@@ -67,6 +67,14 @@ export const ResultRow = memo(function ResultRow({
           {result.name}
           {side && <span className="font-normal text-ink-subtle"> · {side}</span>}
         </span>
+
+        {/* Says out loud what "assembly" only implies. */}
+        {result.is_assembly && (
+          <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-semibold text-accent">
+            <Boxes className="size-3" />
+            Complete unit
+          </span>
+        )}
 
         {/* Line 2: which car */}
         <span className="mt-0.5 block truncate text-[13px] leading-snug text-ink-muted">
