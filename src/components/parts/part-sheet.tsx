@@ -3,7 +3,16 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Clock, MapPin, Pencil, ReceiptText, Trash, TriangleAlert, Undo2 } from "lucide-react";
+import {
+  Boxes,
+  Clock,
+  MapPin,
+  Pencil,
+  ReceiptText,
+  Trash,
+  TriangleAlert,
+  Undo2,
+} from "lucide-react";
 import {
   Sheet,
   SheetBody,
@@ -137,6 +146,23 @@ function PartSheetView({
   // What went out bolted to this part, once it has just been sold.
   const [companions, setCompanions] = useState<AssemblyCompanion[]>([]);
 
+  // And what WOULD go with it, asked up front -- so a complete engine can
+  // say it is a complete engine before anybody commits to selling it.
+  // "Engine assembly" is the catalog's name for it, not a yard's.
+  const [wouldTake, setWouldTake] = useState<number>(0);
+
+  useEffect(() => {
+    if (part.status !== "available" && part.status !== "reserved") return;
+
+    let alive = true;
+    void getAssemblyCompanions(part.id).then((found) => {
+      if (alive) setWouldTake(found.length);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [part.id, part.status]);
+
   const [sale, setSale] = useState<LiveSale | null>(null);
   const [saleLoaded, setSaleLoaded] = useState(part.status !== "sold");
 
@@ -172,6 +198,7 @@ function PartSheetView({
           part={part}
           sale={sale}
           saleLoaded={saleLoaded}
+          wouldTake={wouldTake}
           setMode={setMode}
           onOpenChange={onOpenChange}
           onChanged={onChanged}
@@ -221,6 +248,7 @@ function DetailView({
   part,
   sale,
   saleLoaded,
+  wouldTake,
   setMode,
   onOpenChange,
   onChanged,
@@ -228,6 +256,8 @@ function DetailView({
   part: SheetPart;
   sale: LiveSale | null;
   saleLoaded: boolean;
+  /** How many parts would leave with this one. Zero for almost everything. */
+  wouldTake: number;
   setMode: (m: Mode) => void;
   onOpenChange: (open: boolean) => void;
   onChanged?: (id: string, status: PartStatus) => void;
@@ -411,6 +441,17 @@ function DetailView({
           </div>
         )}
 
+        {wouldTake > 0 && (
+          <div className="mb-3 flex items-start gap-2.5 rounded-xl bg-accent-soft px-3.5 py-3">
+            <Boxes className="mt-0.5 size-[18px] shrink-0 text-accent" />
+            <p className="text-[13px] leading-relaxed text-accent">
+              <strong className="font-semibold">This is the complete unit.</strong>{" "}
+              Selling it takes {wouldTake} more part{wouldTake === 1 ? "" : "s"} off
+              the shelf with it — you&apos;ll tick which ones after the sale.
+            </p>
+          </div>
+        )}
+
         <div className="rounded-xl border border-line bg-surface px-3.5 py-1">
           <dl className="divide-y divide-line">
             <DetailRow label="Asking price" value={formatMoney(part.asking_price_cents)} />
@@ -496,7 +537,7 @@ function DetailView({
               </Button>
             )}
             <Button size="lg" block onClick={() => setMode("sell")}>
-              Mark sold
+              {wouldTake > 0 ? "Sell the whole unit" : "Mark sold"}
             </Button>
           </div>
         </SheetFooter>

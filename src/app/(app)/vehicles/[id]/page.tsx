@@ -18,6 +18,7 @@ import { formatDate, formatKm, vehicleLabel } from "@/lib/format";
 import { PLAN_LABEL, SOURCE_LABEL, TITLE_STATUS_LABEL } from "@/lib/vehicle-options";
 import { VehicleParts } from "./vehicle-parts";
 import { VehicleMenu } from "@/components/vehicles/vehicle-menu";
+import { SellVehicleSheet } from "@/components/vehicles/sell-vehicle-sheet";
 import { BODY_TYPES, DRIVETRAINS, FUEL_TYPES, TRANSMISSIONS } from "@/lib/vehicle-options";
 
 export const dynamic = "force-dynamic";
@@ -191,6 +192,30 @@ export default async function VehicleDetailPage({
             <p className="text-[13px] leading-relaxed text-ink-muted">
               What this car cost is the owner&apos;s to see. Trimming, pricing and
               selling every part below is yours.
+            </p>
+          </Card>
+        )}
+
+        {/* ------------------------------------- Selling it whole */}
+        {repairing && finance && vehicle.status !== "sold" && (
+          <section className="space-y-2">
+            <SectionHeading>When it&apos;s ready</SectionHeading>
+            <SellVehicleSheet
+              vehicleId={id}
+              label={vehicleLabel(vehicle)}
+              investedCents={pnl?.total_invested_cents ?? 0}
+              currentPriceCents={costs?.sale_price_cents ?? 0}
+            />
+          </section>
+        )}
+
+        {repairing && vehicle.status === "sold" && (
+          <Card className="p-3.5">
+            <p className="text-[13.5px] leading-relaxed text-ink-muted">
+              This car was repaired and sold whole
+              {vehicle.sold_on ? ` on ${formatDate(vehicle.sold_on)}` : ""}
+              {vehicle.sold_to ? ` to ${vehicle.sold_to}` : ""}.
+              {finance ? " The figure is in the money panel above." : ""}
             </p>
           </Card>
         )}

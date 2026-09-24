@@ -32,7 +32,14 @@ export function VehicleCard({ vehicle }: { vehicle: VehicleWithCounts }) {
               {vehicle.exterior_colour ? ` · ${vehicle.exterior_colour}` : ""}
             </p>
           </div>
-          <VehicleStatusPill status={vehicle.status} />
+          <span className="flex shrink-0 flex-col items-end gap-1">
+            <VehicleStatusPill status={vehicle.status} />
+            {vehicle.plan === "repair_and_sell" && (
+              <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-accent">
+                Repair &amp; sell
+              </span>
+            )}
+          </span>
         </div>
 
         <div className="mt-3 flex items-center gap-4 text-[12.5px] text-ink-muted">

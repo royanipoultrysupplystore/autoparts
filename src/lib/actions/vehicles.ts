@@ -284,3 +284,76 @@ export async function regenerateParts(vehicleId: string): Promise<ActionState> {
   revalidatePath(`/vehicles/${vehicleId}`);
   return { ok: true };
 }
+
+/**
+ * A car repaired and sold whole.
+ *
+ * The same job as marking a part sold, and until now the only way to do
+ * it was to open the edit form, know to set the status to "Sold whole",
+ * and then fill in a section that only appeared once you had. It may as
+ * well not have existed.
+ *
+ * Owner only: this is a price, and prices are the owner's. The RLS policy
+ * refuses a priced update from anyone else regardless.
+ */
+export async function sellVehicle(
+  vehicleId: string,
+  input: {
+    price: string;
+    soldOn?: string | null;
+    soldTo?: string | null;
+    notes?: string | null;
+  },
+): Promise<ActionState> {
+  const profile = await getCurrentProfile();
+  if (!hasFinanceAccess(profile)) {
+    return { ok: false, error: "Only the owner can record a vehicle sale." };
+  }
+
+  const priceCents = parseMoneyToCents(input.price);
+  if (priceCents === null || priceCents <= 0) {
+    return { ok: false, error: "Enter what the car sold for." };
+  }
+
+  const supabase = await createSupabaseServer();
+
+  const { data: before } = await supabase
+    .from("vehicles")
+    .select("stock_number, year, make, model, plan, status, notes")
+    .eq("id", vehicleId)
+    .single();
+
+  const { error } = await supabase
+    .from("vehicles")
+    .update({
+      sale_price_cents: priceCents,
+      sold_on: input.soldOn || new Date().toISOString().slice(0, 10),
+      sold_to: input.soldTo || null,
+      status: "sold",
+      // Appended, never replaced: whatever was written about the car when
+      // it came in is worth more than a line about how it left.
+      notes: input.notes
+        ? [before?.notes, input.notes].filter(Boolean).join("\n\n")
+        : (before?.notes ?? null),
+    })
+    .eq("id", vehicleId);
+
+  if (error) return { ok: false, error: error.message };
+
+  await supabase.rpc("log_activity", {
+    p_entity_type: "vehicle",
+    p_entity_id: vehicleId,
+    p_action: "sold",
+    p_summary:
+      `Sold ${before ? vehicleLabel(before) : "a vehicle"} ` +
+      `(${before?.stock_number ?? "?"}) whole for $${(priceCents / 100).toFixed(2)}`,
+    p_before: { status: before?.status ?? null },
+    p_after: { status: "sold", sale_price_cents: priceCents, sold_to: input.soldTo },
+  });
+
+  revalidatePath(`/vehicles/${vehicleId}`);
+  revalidatePath("/vehicles");
+  revalidatePath("/reports");
+  revalidatePath("/");
+  return { ok: true };
+}

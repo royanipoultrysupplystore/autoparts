@@ -94,8 +94,8 @@ export function BottomNav({ showMoney }: { showMoney: boolean }) {
               aria-current={tab.match(pathname) ? "page" : undefined}
               className={
                 tab.primary
-                  ? "flex flex-col items-center justify-center gap-1 px-1 pb-1.5 pt-1.5"
-                  : "tap flex h-full min-w-0 flex-col items-center justify-center gap-1 px-1 pb-1.5 pt-2"
+                  ? "flex flex-col items-center justify-center gap-0.5 px-0.5 pb-1.5 pt-1.5"
+                  : "tap flex h-full min-w-0 flex-col items-center justify-center gap-0.5 px-0.5 pb-1.5 pt-2"
               }
             >
               <TabInner tab={tab} active={tab.match(pathname)} />
@@ -135,7 +135,7 @@ function TabInner({ tab, active }: { tab: Tab; active: boolean }) {
             strokeWidth={2.25}
           />
         </span>
-        <span className="text-[10px] font-medium leading-none text-ink-subtle">
+        <span className="w-full truncate text-center text-[10px] font-medium leading-tight text-ink-subtle">
           {tab.label}
         </span>
       </>
@@ -160,7 +160,7 @@ function TabInner({ tab, active }: { tab: Tab; active: boolean }) {
       </span>
       <span
         className={cn(
-          "max-w-full truncate text-[10px] leading-none transition-colors duration-150",
+          "w-full truncate text-center text-[10px] leading-tight transition-colors duration-150",
           lit ? "font-semibold text-accent" : "font-medium text-ink-subtle",
         )}
       >

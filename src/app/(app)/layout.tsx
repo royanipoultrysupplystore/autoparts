@@ -43,7 +43,14 @@ export default async function AppLayout({
         <NavigationProgress />
       </Suspense>
 
-      <div className="mx-auto w-full max-w-[640px] pb-[calc(72px+env(safe-area-inset-bottom,0px))]">
+      {/*
+        84, not 72. The bar grew a sixth tab, and on a narrow phone at a
+        large text size it is taller than the 72 this used to reserve --
+        so the last row of every list sat underneath it, untappable. That
+        is what "the bottom of the screen is not responsive" means: the
+        thing you are tapping is behind the tab bar.
+      */}
+      <div className="mx-auto w-full max-w-[640px] pb-[calc(84px+env(safe-area-inset-bottom,0px))]">
         <PageTransition>{children}</PageTransition>
       </div>
       <BottomNav showMoney={finance} />
