@@ -258,6 +258,9 @@ export type SearchResult = {
   score: number;
   /** A complete unit — selling it takes its own parts with it. */
   is_assembly: boolean;
+  /** The live sale, if it is on one. Null for anything unsold. */
+  sold_on: string | null;
+  sold_for_cents: number | null;
   total_count: number;
 };
 

@@ -26,6 +26,8 @@ export type Filters = {
   conditions: PartCondition[];
   categories: string[];
   statuses: PartStatus[];
+  soldFrom: string;
+  soldTo: string;
 };
 
 export const EMPTY_FILTERS: Filters = {
@@ -36,6 +38,8 @@ export const EMPTY_FILTERS: Filters = {
   conditions: [],
   categories: [],
   statuses: ["available"],
+  soldFrom: "",
+  soldTo: "",
 };
 
 export function countActiveFilters(f: Filters): number {
@@ -46,6 +50,8 @@ export function countActiveFilters(f: Filters): number {
     (f.yearMax ? 1 : 0) +
     f.conditions.length +
     f.categories.length +
+    (f.soldFrom ? 1 : 0) +
+    (f.soldTo ? 1 : 0) +
     // The default is available-only; anything else counts as a choice.
     (f.statuses.length === 1 && f.statuses[0] === "available" ? 0 : 1)
   );
@@ -149,6 +155,33 @@ export function FilterSheet({
                 ))}
               </div>
             </Field>
+
+            {draft.statuses.includes("sold") && (
+              <Field
+                label="Sold between"
+                hint="Leave either side open for everything before or since."
+              >
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="date"
+                    aria-label="Sold from"
+                    value={draft.soldFrom}
+                    onChange={(e) =>
+                      setDraft((d) => ({ ...d, soldFrom: e.target.value }))
+                    }
+                  />
+                  <span className="text-ink-subtle">–</span>
+                  <Input
+                    type="date"
+                    aria-label="Sold to"
+                    value={draft.soldTo}
+                    onChange={(e) =>
+                      setDraft((d) => ({ ...d, soldTo: e.target.value }))
+                    }
+                  />
+                </div>
+              </Field>
+            )}
 
             <Field label="Year range">
               <div className="flex items-center gap-2">

@@ -20,6 +20,8 @@ export type SearchFilters = {
   conditions?: PartCondition[];
   categories?: string[];
   statuses?: PartStatus[];
+  soldFrom?: string;
+  soldTo?: string;
   limit?: number;
   offset?: number;
 };
@@ -43,6 +45,8 @@ export async function searchParts(filters: SearchFilters): Promise<{
     p_statuses: filters.statuses?.length ? filters.statuses : DEFAULT_STATUSES,
     p_limit: filters.limit ?? 50,
     p_offset: filters.offset ?? 0,
+    p_sold_from: filters.soldFrom || null,
+    p_sold_to: filters.soldTo || null,
   });
 
   if (error) throw new Error(error.message);

@@ -75,6 +75,8 @@ export function SearchScreen({
         p_statuses: f.statuses,
         p_limit: PAGE_SIZE,
         p_offset: offset,
+        p_sold_from: f.soldFrom || null,
+        p_sold_to: f.soldTo || null,
       });
 
       // A stale response must never overwrite a fresher one.

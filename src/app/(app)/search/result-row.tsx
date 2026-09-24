@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { PartIconTile } from "@/lib/icons/part-icons";
 import { ConditionBadge, StatusPill } from "@/components/ui/status-pill";
 import { formatMoney } from "@/lib/money";
-import { SIDE_LABELS, formatKm, timeUntil } from "@/lib/format";
+import { SIDE_LABELS, formatDate, formatKm, timeUntil } from "@/lib/format";
 import type { SearchResult } from "@/types/db";
 
 /**
@@ -98,6 +98,19 @@ export const ResultRow = memo(function ResultRow({
             </span>
           )}
         </span>
+
+        {/*
+          A sold row with no date on it is half a record: the question is
+          always "when did that go?", and it was answerable nowhere.
+        */}
+        {result.sold_on && (
+          <span className="mt-1 block text-[12px] text-sold">
+            Sold {formatDate(result.sold_on)}
+            {result.sold_for_cents !== null
+              ? ` · ${formatMoney(result.sold_for_cents)}`
+              : ""}
+          </span>
+        )}
 
         {result.status === "reserved" && result.reserved_until && (
           <span className="mt-1 block text-[12px] text-reserved">
