@@ -17,7 +17,7 @@ import { bulkSetPrices, publishParts } from "@/lib/actions/parts";
 import { PartSheet, type SheetPart } from "@/components/parts/part-sheet";
 import { AddPartSheet } from "@/components/parts/add-part-sheet";
 import { useFinanceAccess, useProfile } from "@/components/profile-provider";
-import type { CatalogOption, Part, PartStatus } from "@/types/db";
+import type { CatalogOption, Part, PartStatus, VehiclePlan } from "@/types/db";
 
 type VehicleHead = {
   id: string;
@@ -26,6 +26,7 @@ type VehicleHead = {
   make: string;
   model: string;
   trim: string | null;
+  plan: VehiclePlan;
 };
 
 export function VehicleParts({
@@ -156,6 +157,27 @@ export function VehicleParts({
   }
 
   if (parts.length === 0) {
+    // A car being repaired has no parts list by design, and must not be
+    // offered one: generating 239 rows for it would put stock that does
+    // not exist into every search.
+    if (vehicle.plan === "repair_and_sell") {
+      if (!worksTheYard) return null;
+
+      return (
+        <div className="space-y-2.5">
+          <p className="px-1 text-[13px] leading-relaxed text-ink-muted">
+            Nothing has been taken off this car. If you do pull a part to sell
+            on its own, add it here.
+          </p>
+          <AddPartSheet
+            vehicleId={vehicle.id}
+            catalog={catalog}
+            categories={categories}
+          />
+        </div>
+      );
+    }
+
     return (
       <div className="space-y-3">
         <EmptyState

@@ -224,19 +224,18 @@ export default async function VehicleDetailPage({
         {repairing && parts.length === 0 && (
           <Card className="p-3.5">
             <p className="text-[13.5px] leading-relaxed text-ink-muted">
-              This car is being repaired and sold whole, so no parts list was
-              built for it.
+              This car is being repaired and sold whole, so it has no parts
+              list.
               {finance ? (
                 <>
                   {" "}
-                  Put repair, inspection and transport costs against it under{" "}
+                  Repair, inspection and transport costs go under{" "}
                   <Link href="/expenses" className="font-medium text-accent">
                     Expenses
                   </Link>
-                  , and record what it sold for by editing the vehicle.
+                  , against this car.
                 </>
-              ) : null}{" "}
-              If you do end up pulling parts off it, add them below.
+              ) : null}
             </p>
           </Card>
         )}
@@ -261,6 +260,7 @@ export default async function VehicleDetailPage({
               make: vehicle.make,
               model: vehicle.model,
               trim: vehicle.trim,
+              plan: vehicle.plan,
             }}
             parts={parts}
             storefrontEnabled={storefrontEnabled}
