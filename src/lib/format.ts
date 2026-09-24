@@ -29,6 +29,19 @@ export function formatDate(value: string | Date | null | undefined): string {
   return d ? dateFmt.format(d) : "—";
 }
 
+const timeFmt = new Intl.DateTimeFormat("en-CA", {
+  timeZone: TIMEZONE,
+  hour: "numeric",
+  minute: "2-digit",
+});
+
+/** Just the clock time, for a list that already says which day it is. */
+export function formatTime(value: string | Date | null | undefined): string {
+  if (!value) return "";
+  const d = typeof value === "string" ? parseDbDate(value) : value;
+  return d ? timeFmt.format(d) : "";
+}
+
 export function formatDateTime(value: string | Date | null | undefined): string {
   if (!value) return "—";
   const d = typeof value === "string" ? parseDbDate(value) : value;
