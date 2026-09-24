@@ -147,7 +147,7 @@ export const STATUS_LABELS: Record<PartStatus, string> = {
   available: "Available",
   reserved: "Reserved",
   sold: "Sold",
-  included: "Went with",
+  included: "Went with unit",
   kept: "Kept",
   scrapped: "Scrapped",
 };

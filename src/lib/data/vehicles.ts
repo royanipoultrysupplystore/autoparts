@@ -25,6 +25,7 @@ export type VehicleWithCounts = Vehicle & {
 
 export async function listVehicles(options?: {
   status?: string[];
+  plan?: string;
   search?: string;
 }): Promise<VehicleWithCounts[]> {
   const supabase = await createSupabaseServer();
@@ -32,6 +33,7 @@ export async function listVehicles(options?: {
   let query = supabase.from("vehicles").select(VEHICLE_COLUMNS);
 
   if (options?.status?.length) query = query.in("status", options.status);
+  if (options?.plan) query = query.eq("plan", options.plan);
 
   if (options?.search?.trim()) {
     const q = options.search.trim();

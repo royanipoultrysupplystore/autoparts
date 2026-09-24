@@ -51,7 +51,14 @@ export function countActiveFilters(f: Filters): number {
   );
 }
 
-const ALL_STATUSES: PartStatus[] = ["available", "reserved", "sold", "kept", "scrapped"];
+const ALL_STATUSES: PartStatus[] = [
+  "available",
+  "reserved",
+  "sold",
+  "included",
+  "kept",
+  "scrapped",
+];
 
 /** Sentinel: a select value cannot be the empty string. */
 const ALL_CATEGORIES = "__all";
