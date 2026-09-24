@@ -4,7 +4,6 @@ import { getMakesInYard } from "@/lib/data/vehicles";
 import { createVehicle } from "@/lib/actions/vehicles";
 import { AppHeader } from "@/components/nav/app-header";
 import { VehicleForm } from "@/components/vehicles/vehicle-form";
-import { generatedPartCount } from "@/lib/part-catalog-seed";
 
 export const dynamic = "force-dynamic";
 
@@ -20,14 +19,13 @@ export default async function NewVehiclePage() {
     <>
       <AppHeader
         title="Add a vehicle"
-        subtitle={`Generates up to ${generatedPartCount()} parts`}
         back={{ href: "/vehicles" }}
       />
       <VehicleForm
         action={createVehicle}
         yardMakes={yardMakes}
         canPrice={hasFinanceAccess(profile)}
-        submitLabel="Save and build the parts list"
+        submitLabel="Save the vehicle"
       />
     </>
   );

@@ -10,6 +10,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { Card, SectionHeading } from "@/components/ui/primitives";
 import { centsToInput, formatMoney, parseMoneyToCents } from "@/lib/money";
 import { todayInVancouver } from "@/lib/format";
+import { generatedPartCount } from "@/lib/part-catalog-seed";
 import {
   BODY_TYPES,
   COMMON_MAKES,
@@ -635,6 +636,8 @@ function SubmitBar({
             <WandSparkles className="size-5 animate-pulse" />
             {buildsParts ? "Building the parts list…" : "Saving…"}
           </>
+        ) : buildsParts ? (
+          "Save and build the parts list"
         ) : (
           label
         )}
@@ -643,8 +646,9 @@ function SubmitBar({
         <p className="text-center text-[12.5px] leading-relaxed text-ink-subtle">
           {buildsParts ? (
             <>
-              Saving builds the full parts list for this car. You&apos;ll trim it
-              down on the next screen.
+              Saving builds the full parts list for this car — up to{" "}
+              {generatedPartCount()} rows. You&apos;ll trim it down on the next
+              screen.
             </>
           ) : (
             <>
