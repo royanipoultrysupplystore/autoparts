@@ -165,9 +165,17 @@ export function VehicleParts({
 
       return (
         <div className="space-y-2.5">
+          {/*
+            On a car being repaired, "add a part" reads both ways -- a part
+            taken off it, or a part bought to put into it. Those are
+            opposite things: one is stock, the other is an expense. The
+            button cannot say which, so the line above it must.
+          */}
           <p className="px-1 text-[13px] leading-relaxed text-ink-muted">
-            Nothing has been taken off this car. If you do pull a part to sell
-            on its own, add it here.
+            Only for a part you take <strong className="font-medium text-ink">off</strong>{" "}
+            this car to sell on its own. A part you{" "}
+            <strong className="font-medium text-ink">buy</strong> to repair it is
+            an expense, not stock — put it under Expenses, against this car.
           </p>
           <AddPartSheet
             vehicleId={vehicle.id}
