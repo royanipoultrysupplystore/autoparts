@@ -794,6 +794,101 @@ async function behaviour(db: pg.Client) {
     });
     check("staff can still sell a part", staffSell.ok === true, JSON.stringify(staffSell));
 
+    // --- The second Civic starts from the first ------------------------
+    const found = await asUser(db, partnerId, async () => {
+      const { rows } = await db.query<{
+        vehicle_id: string; parts_total: string; parts_priced: string;
+      }>(`select vehicle_id, parts_total, parts_priced
+            from public.find_parts_template('Honda', 'Civic', 2016)`);
+      return rows[0];
+    });
+    check(
+      "a car of the same make and model is offered as a template",
+      found?.vehicle_id === vehicleId && Number(found.parts_total) > 200,
+      JSON.stringify(found),
+    );
+
+    // Typed the way somebody in a hurry would.
+    const looseMatch = await asUser(db, partnerId, async () => {
+      const { rows } = await db.query<{ vehicle_id: string }>(
+        `select vehicle_id from public.find_parts_template('  honda ', 'CIVIC', 2019)`,
+      );
+      return rows[0];
+    });
+    check(
+      "the match does not care about case, spacing, or the exact year",
+      looseMatch?.vehicle_id === vehicleId,
+      JSON.stringify(looseMatch),
+    );
+
+    const secondCivicId = await asUser(db, ownerId, async () => {
+      const { rows } = await db.query<{ id: string }>(
+        `insert into public.vehicles (year, make, model, purchase_price_cents)
+         values (2017, 'Honda', 'Civic', 400000) returning id`,
+      );
+      return rows[0].id;
+    });
+
+    const copied = await asUser(db, partnerId, async () => {
+      const { rows } = await db.query<{ n: number }>(
+        `select public.copy_parts_from_vehicle($1, $2) as n`,
+        [vehicleId, secondCivicId],
+      );
+      return Number(rows[0].n);
+    });
+    check(
+      "copying brings the whole list across",
+      copied === Number(found.parts_total),
+      `copied ${copied} of ${found?.parts_total}`,
+    );
+
+    const { rows: carried } = await db.query<{ n: string }>(
+      `select count(*)::int as n from public.parts
+        where vehicle_id = $1 and asking_price_cents > 0`,
+      [secondCivicId],
+    );
+    check(
+      "the prices come with it",
+      Number(carried[0].n) === Number(found.parts_priced),
+      `${carried[0].n} priced, expected ${found?.parts_priced}`,
+    );
+
+    // The source has sold, reserved and included parts by this point. None
+    // of that belongs to a car that has just arrived.
+    const { rows: fresh } = await db.query<{ status: string; n: string }>(
+      `select status::text, count(*)::int as n from public.parts
+        where vehicle_id = $1 group by status`,
+      [secondCivicId],
+    );
+    check(
+      "and nothing else does -- every copied part is on the shelf",
+      fresh.length === 1 && fresh[0].status === "available",
+      JSON.stringify(fresh),
+    );
+
+    const { rows: clean } = await db.query<{ n: string }>(
+      `select count(*)::int as n from public.parts
+        where vehicle_id = $1
+          and (shelf_location is not null or notes is not null or is_public)`,
+      [secondCivicId],
+    );
+    check(
+      "no shelf location, notes or listing is carried over",
+      Number(clean[0].n) === 0,
+      `${clean[0].n} rows carried something`,
+    );
+
+    const { rows: slugs } = await db.query<{ n: string; d: string }>(
+      `select count(*)::int as n, count(distinct slug)::int as d
+         from public.parts where vehicle_id = $1`,
+      [secondCivicId],
+    );
+    check(
+      "the copies get their own slugs",
+      Number(slugs[0].n) === Number(slugs[0].d),
+      JSON.stringify(slugs[0]),
+    );
+
     // --- History is not rewritten -------------------------------------
     await db.query(
       `update public.part_catalog set name = 'RENAMED IN A ROLLED BACK TX'

@@ -1,9 +1,11 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { CircleAlert, WandSparkles } from "lucide-react";
+import { CircleAlert, Copy, WandSparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Field, Input, MoneyInput, Textarea } from "@/components/ui/field";
 import { SimpleSelect } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
@@ -26,7 +28,11 @@ import {
   VEHICLE_STATUSES,
   yearOptions,
 } from "@/lib/vehicle-options";
-import type { ActionState } from "@/lib/actions/vehicles";
+import {
+  findPartsTemplate,
+  type ActionState,
+  type PartsTemplate,
+} from "@/lib/actions/vehicles";
 import type {
   BodyType,
   DrivetrainType,
@@ -117,6 +123,47 @@ export function VehicleForm({
 
   const soldWhole = plan === "repair_and_sell" && status === "sold";
 
+  // A car of this make and model that has already been trimmed and
+  // priced. Only offered when adding: an edit is not the moment to
+  // rebuild a parts list underneath somebody.
+  //
+  // The answer is kept next to the question it answers, and read back
+  // only when the two still match. Clearing it as the make is retyped
+  // would mean writing state from an effect on every keystroke, and would
+  // still flash the old car's name for a frame before it went.
+  const lookupKey =
+    isNew && plan === "part_out"
+      ? `${make.trim().toLowerCase()}|${model.trim().toLowerCase()}|${year}`
+      : "";
+
+  const [found, setFound] = useState<{ key: string; template: PartsTemplate | null }>(
+    { key: "", template: null },
+  );
+  const [declined, setDeclined] = useState<string[]>([]);
+
+  const template = found.key === lookupKey ? found.template : null;
+  const useTemplate = !!template && !declined.includes(template.vehicle_id);
+
+  useEffect(() => {
+    if (!lookupKey || !make.trim() || !model.trim()) return;
+
+    // Typed, not chosen -- so it waits for the typing to stop rather than
+    // querying on every keystroke.
+    let alive = true;
+    const t = setTimeout(() => {
+      void findPartsTemplate(make, model, Number(year) || null).then((result) => {
+        if (alive) setFound({ key: lookupKey, template: result });
+      });
+    }, 350);
+
+    return () => {
+      alive = false;
+      clearTimeout(t);
+    };
+  }, [lookupKey, make, model, year]);
+
+  const copying = useTemplate && plan === "part_out";
+
   const landed = useMemo(
     () =>
       [purchase, auctionFee, transport, other]
@@ -200,6 +247,66 @@ export function VehicleForm({
           <CircleAlert className="mt-0.5 size-[18px] shrink-0 text-danger" />
           <p className="text-[13.5px] leading-relaxed text-danger">{state.error}</p>
         </div>
+      )}
+
+      {/*
+        Shown the moment the make and model are recognised, which is what
+        makes it useful: the answer arrives before anybody has started
+        filling in the rest of the car.
+      */}
+      {template && (
+        <label
+          className={cn(
+            "flex cursor-pointer select-none items-start gap-3 rounded-xl border px-3.5 py-3",
+            "transition-colors",
+            useTemplate
+              ? "border-accent bg-accent-soft"
+              : "border-line-strong bg-surface",
+          )}
+        >
+          <Checkbox
+            checked={useTemplate}
+            onCheckedChange={() =>
+              setDeclined((prev) =>
+                prev.includes(template.vehicle_id)
+                  ? prev.filter((id) => id !== template.vehicle_id)
+                  : [...prev, template.vehicle_id],
+              )
+            }
+            className="mt-0.5"
+          />
+          <span className="min-w-0 flex-1">
+            <span
+              className={cn(
+                "flex items-center gap-1.5 text-[14px] font-semibold",
+                useTemplate ? "text-accent" : "text-ink",
+              )}
+            >
+              <Copy className="size-4 shrink-0" />
+              We&apos;ve done this one before
+            </span>
+            <span
+              className={cn(
+                "mt-1 block text-[13px] leading-relaxed",
+                useTemplate ? "text-accent/90" : "text-ink-muted",
+              )}
+            >
+              {template.year} {template.make} {template.model}
+              {template.trim ? ` ${template.trim}` : ""} ({template.stock_number}) has{" "}
+              {template.parts_total} parts
+              {template.parts_priced > 0
+                ? `, ${template.parts_priced} of them priced`
+                : ""}
+              . Start this car from that list instead of all{" "}
+              {generatedPartCount()} — you can still trim and re-price it on the
+              next screen.
+            </span>
+          </span>
+        </label>
+      )}
+
+      {copying && (
+        <input type="hidden" name="copy_from" value={template.vehicle_id} />
       )}
 
       {/* ---------------------------------------------------- The car */}
@@ -608,7 +715,7 @@ export function VehicleForm({
         </section>
       )}
 
-      <SubmitBar label={submitLabel} isNew={isNew} plan={plan} />
+      <SubmitBar label={submitLabel} isNew={isNew} plan={plan} copying={copying} />
     </form>
   );
 }
@@ -617,10 +724,13 @@ function SubmitBar({
   label,
   isNew,
   plan,
+  copying,
 }: {
   label: string;
   isNew: boolean;
   plan: VehiclePlan;
+  /** Starting from an earlier car of the same make and model. */
+  copying: boolean;
 }) {
   const { pending } = useFormStatus();
 
@@ -634,10 +744,14 @@ function SubmitBar({
         {pending ? (
           <>
             <WandSparkles className="size-5 animate-pulse" />
-            {buildsParts ? "Building the parts list…" : "Saving…"}
+            {!buildsParts
+              ? "Saving…"
+              : copying
+                ? "Copying the parts list…"
+                : "Building the parts list…"}
           </>
         ) : buildsParts ? (
-          "Save and build the parts list"
+          copying ? "Save and copy the parts list" : "Save and build the parts list"
         ) : (
           label
         )}
@@ -645,11 +759,18 @@ function SubmitBar({
       {isNew && (
         <p className="text-center text-[12.5px] leading-relaxed text-ink-subtle">
           {buildsParts ? (
-            <>
-              Saving builds the full parts list for this car — up to{" "}
-              {generatedPartCount()} rows. You&apos;ll trim it down on the next
-              screen.
-            </>
+            copying ? (
+              <>
+                Saving copies that car&apos;s parts and prices onto this one.
+                You&apos;ll check them over on the next screen.
+              </>
+            ) : (
+              <>
+                Saving builds the full parts list for this car — up to{" "}
+                {generatedPartCount()} rows. You&apos;ll trim it down on the next
+                screen.
+              </>
+            )
           ) : (
             <>
               No parts list is built for a car you&apos;re fixing up. Put repair and

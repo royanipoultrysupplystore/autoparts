@@ -141,17 +141,27 @@ export async function createVehicle(
   // search and drag the yard totals off.
   const partingOut = values.plan === "part_out";
 
+  // Copying an earlier car of the same make and model starts from a list
+  // somebody has already trimmed and priced, rather than from all 239.
+  const copyFrom = str(formData, "copy_from");
+
   if (partingOut) {
-    const { error: genError } = await supabase.rpc("generate_parts_for_vehicle", {
-      p_vehicle_id: vehicle.id,
-    });
+    const { error: genError } = copyFrom
+      ? await supabase.rpc("copy_parts_from_vehicle", {
+          p_source_vehicle_id: copyFrom,
+          p_target_vehicle_id: vehicle.id,
+        })
+      : await supabase.rpc("generate_parts_for_vehicle", {
+          p_vehicle_id: vehicle.id,
+        });
 
     if (genError) {
       return {
         ok: false,
         error:
-          `${vehicle.stock_number} was saved, but its parts could not be generated: ` +
-          `${genError.message}. Open the vehicle and try again.`,
+          `${vehicle.stock_number} was saved, but its parts could not be ` +
+          `${copyFrom ? "copied" : "generated"}: ${genError.message}. ` +
+          `Open the vehicle and try again.`,
       };
     }
   }
@@ -356,4 +366,44 @@ export async function sellVehicle(
   revalidatePath("/reports");
   revalidatePath("/");
   return { ok: true };
+}
+
+/** A car already in the yard whose parts list this one could start from. */
+export type PartsTemplate = {
+  vehicle_id: string;
+  stock_number: string;
+  year: number;
+  make: string;
+  model: string;
+  trim: string | null;
+  parts_total: number;
+  parts_priced: number;
+  purchase_date: string;
+};
+
+/**
+ * Have we done one of these before?
+ *
+ * Called from the add form as the make and model are typed, so it has to
+ * be cheap and it has to return nothing rather than fail -- a lookup that
+ * errors must not stop somebody booking a car in.
+ */
+export async function findPartsTemplate(
+  make: string,
+  model: string,
+  year?: number | null,
+): Promise<PartsTemplate | null> {
+  const profile = await getCurrentProfile();
+  if (!canWorkTheYard(profile)) return null;
+  if (!make.trim() || !model.trim()) return null;
+
+  const supabase = await createSupabaseServer();
+  const { data, error } = await supabase.rpc("find_parts_template", {
+    p_make: make.trim(),
+    p_model: model.trim(),
+    p_year: year ?? null,
+  });
+
+  if (error) return null;
+  return ((data as PartsTemplate[])?.[0]) ?? null;
 }
