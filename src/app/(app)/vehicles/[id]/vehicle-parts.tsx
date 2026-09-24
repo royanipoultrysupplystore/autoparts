@@ -157,34 +157,10 @@ export function VehicleParts({
   }
 
   if (parts.length === 0) {
-    // A car being repaired has no parts list by design, and must not be
-    // offered one: generating 239 rows for it would put stock that does
-    // not exist into every search.
-    if (vehicle.plan === "repair_and_sell") {
-      if (!worksTheYard) return null;
-
-      return (
-        <div className="space-y-2.5">
-          {/*
-            On a car being repaired, "add a part" reads both ways -- a part
-            taken off it, or a part bought to put into it. Those are
-            opposite things: one is stock, the other is an expense. The
-            button cannot say which, so the line above it must.
-          */}
-          <p className="px-1 text-[13px] leading-relaxed text-ink-muted">
-            Only for a part you take <strong className="font-medium text-ink">off</strong>{" "}
-            this car to sell on its own. A part you{" "}
-            <strong className="font-medium text-ink">buy</strong> to repair it is
-            an expense, not stock — put it under Expenses, against this car.
-          </p>
-          <AddPartSheet
-            vehicleId={vehicle.id}
-            catalog={catalog}
-            categories={categories}
-          />
-        </div>
-      );
-    }
+    // A car being repaired and sold whole has no parts, and is not given
+    // any way to acquire them. It is not inventory; it is one car with one
+    // price, and every control for managing a shelf is noise on it.
+    if (vehicle.plan === "repair_and_sell") return null;
 
     return (
       <div className="space-y-3">
@@ -219,7 +195,7 @@ export function VehicleParts({
             booked car that is 239 rows down, so it was never found and the
             app looked like it simply could not do it.
           */}
-          {worksTheYard && !selecting && (
+          {worksTheYard && !selecting && vehicle.plan !== "repair_and_sell" && (
             <AddPartSheet
               vehicleId={vehicle.id}
               catalog={catalog}
