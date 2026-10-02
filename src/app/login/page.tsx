@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
-import { WordmarkLarge } from "@/components/brand";
+import { BuiltBy, WordmarkLarge } from "@/components/brand";
 
 function LoginForm() {
   const router = useRouter();
@@ -100,6 +100,7 @@ export default function LoginPage() {
           Accounts are created by the owner. If you cannot get in, ask
           whoever set up the yard account to add you.
         </p>
+        <BuiltBy className="mt-10" />
       </div>
     </main>
   );

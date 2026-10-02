@@ -62,3 +62,28 @@ export function WordmarkLarge({ className }: { className?: string }) {
     </div>
   );
 }
+
+/**
+ * The developer's credit. Shown on the sign-in page and at the end of
+ * More, and nowhere else -- every other screen is working space on a
+ * phone in the yard. Add a phone number or website to `href` and it
+ * becomes a link.
+ */
+const BUILT_BY = { name: "Rahimi Tech Solution", href: null as string | null };
+
+export function BuiltBy({ className }: { className?: string }) {
+  const name = <span className="font-semibold text-ink-muted">{BUILT_BY.name}</span>;
+
+  return (
+    <p className={cn("text-center text-[12px] text-ink-subtle", className)}>
+      Built by{" "}
+      {BUILT_BY.href ? (
+        <a href={BUILT_BY.href} className="underline-offset-2 active:underline">
+          {name}
+        </a>
+      ) : (
+        name
+      )}
+    </p>
+  );
+}

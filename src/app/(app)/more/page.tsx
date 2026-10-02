@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { getCurrentProfile, hasFinanceAccess } from "@/lib/supabase/server";
 import { AppHeader } from "@/components/nav/app-header";
+import { BuiltBy } from "@/components/brand";
 import { Card, SectionHeading } from "@/components/ui/primitives";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ChangePassword } from "@/components/change-password";
@@ -127,9 +128,12 @@ export default async function MorePage() {
           </button>
         </form>
 
-        <p className="pb-2 text-center text-[11.5px] text-ink-subtle">
-          Mahmood Shah Auto Recycler · Vancouver, BC · all prices CAD
-        </p>
+        <div className="space-y-1.5 pb-2">
+          <p className="text-center text-[11.5px] text-ink-subtle">
+            Mahmood Shah Auto Recycler · Vancouver, BC · all prices CAD
+          </p>
+          <BuiltBy />
+        </div>
       </div>
     </>
   );
