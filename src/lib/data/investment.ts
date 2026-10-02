@@ -39,6 +39,8 @@ export type Investment = {
   total_cents: number;
   partners: PartnerStake[];
   contributions: Contribution[];
+  /** The contributions table could not be read -- not yet created, most likely. */
+  unavailable: boolean;
 };
 
 export async function getInvestment(): Promise<Investment | null> {
@@ -56,7 +58,9 @@ export async function getInvestment(): Promise<Investment | null> {
     supabase.from("profiles").select("id, full_name, role, is_active").order("full_name"),
   ]);
 
-  if (error) throw new Error(error.message);
+  // Reported rather than thrown, so the rest of the page -- the sales and
+  // spending totals, which do not depend on this table -- still shows.
+  const unavailable = !!error;
 
   const entries = (rows ?? []) as Omit<Contribution, "partner_name">[];
   const members = (people ?? []) as {
@@ -99,6 +103,7 @@ export async function getInvestment(): Promise<Investment | null> {
   const names = new Map(members.map((m) => [m.id, m.full_name]));
 
   return {
+    unavailable,
     total_cents,
     partners,
     contributions: entries.map((e) => ({

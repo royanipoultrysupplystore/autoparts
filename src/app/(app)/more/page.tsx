@@ -100,8 +100,8 @@ export default async function MorePage() {
               <Row
                 href="/investment"
                 icon={HandCoins}
-                label="Investment"
-                note="What each partner has put in"
+                label="Investment & totals"
+                note="Money in, money out, and each partner's share"
               />
             )}
             {storefrontEnabled && (

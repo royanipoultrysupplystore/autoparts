@@ -49,6 +49,76 @@ export async function getAllVehiclePnl(): Promise<VehiclePnl[]> {
   return (data ?? []) as VehiclePnl[];
 }
 
+/**
+ * Everything the business has taken in and paid out, since the first car.
+ *
+ * The monthly report answers one month at a time; this is the running
+ * total the partners ask about -- "how much have we sold, and how much
+ * have we spent". Built from vehicle_pnl, so it counts sales exactly the
+ * way every other report does (returned sales out, whole-car sales and
+ * scrap in), plus business overhead, which belongs to no car.
+ */
+export type AllTimeTotals = {
+  parts_sales_cents: number;
+  vehicle_sales_cents: number;
+  scrap_cents: number;
+  sales_total_cents: number;
+  /** What the cars cost to buy and bring in: price, fees, transport. */
+  cars_cents: number;
+  /** Repairs, towing and the rest, charged against a car. */
+  car_expenses_cents: number;
+  /** Rent, tools, fuel -- spending that belongs to no one car. */
+  overhead_cents: number;
+  spent_total_cents: number;
+  vehicles: number;
+};
+
+export async function getAllTimeTotals(): Promise<AllTimeTotals | null> {
+  if (!hasFinanceAccess(await getCurrentProfile())) return null;
+
+  const supabase = await createSupabaseServer();
+
+  const { data, error } = await supabase.rpc("vehicle_pnl", { p_vehicle_id: null });
+  if (error) return null;
+  const rows = (data ?? []) as VehiclePnl[];
+
+  // Overhead has no car to hang off, so it is summed from expenses. Read
+  // in pages: a table read stops at 1,000 rows, and a few years of fuel
+  // receipts would quietly fall off the end of one request.
+  let overhead_cents = 0;
+  for (let from = 0; ; from += 1000) {
+    const { data: page, error: pageError } = await supabase
+      .from("expenses")
+      .select("amount_cents")
+      .eq("scope", "business")
+      .order("id")
+      .range(from, from + 999);
+    if (pageError) return null;
+    for (const e of page ?? []) overhead_cents += e.amount_cents as number;
+    if (!page || page.length < 1000) break;
+  }
+
+  const sum = (pick: (r: VehiclePnl) => number) => rows.reduce((n, r) => n + pick(r), 0);
+
+  const parts_sales_cents = sum((r) => r.parts_revenue_cents);
+  const vehicle_sales_cents = sum((r) => r.vehicle_sale_cents);
+  const scrap_cents = sum((r) => r.scrap_income_cents);
+  const cars_cents = sum((r) => r.landed_cost_cents);
+  const car_expenses_cents = sum((r) => r.direct_expenses_cents);
+
+  return {
+    parts_sales_cents,
+    vehicle_sales_cents,
+    scrap_cents,
+    sales_total_cents: parts_sales_cents + vehicle_sales_cents + scrap_cents,
+    cars_cents,
+    car_expenses_cents,
+    overhead_cents,
+    spent_total_cents: cars_cents + car_expenses_cents + overhead_cents,
+    vehicles: rows.length,
+  };
+}
+
 export async function getTopRemainingParts(
   vehicleId: string,
   limit = 10,
