@@ -165,7 +165,8 @@ const CHECKS: Check[] = [
           from pg_class c join pg_namespace n on n.oid = c.relnamespace
           where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity
             and c.relname in ('profiles','vehicles','part_catalog','parts',
-                              'sales','expenses','activity_log')`,
+                              'sales','expenses','activity_log',
+                              'capital_contributions')`,
     expect: (r) => {
       const missing = (r[0] as { missing: string | null })?.missing;
       return missing ? `RLS is off for: ${missing}` : null;
@@ -629,6 +630,48 @@ async function behaviourChecks(db: PGlite): Promise<string[]> {
     fail(`the copied car has ${laterParts.rows.length} parts, expected 5`);
   }
 
+  // ---- What partners put in is the owner's to see --------------------
+  // By this point the first member has been promoted to owner.
+  try {
+    await asPartner(
+      `insert into public.capital_contributions (partner_id, amount_cents, note)
+       values ($1, 500000, 'auction money')`,
+      [staffId],
+    );
+  } catch (err) {
+    fail(`the owner could not record an investment: ${err instanceof Error ? err.message : err}`);
+  }
+
+  const ownerSees = await asPartner(`select count(*)::int as n from public.capital_contributions`);
+  if (Number((ownerSees.rows[0] as { n: number }).n) !== 1) {
+    fail("the owner cannot read the investment they recorded");
+  }
+
+  // This harness otherwise runs as the superuser, which row-level
+  // security does not apply to. The table is guarded by its policy alone,
+  // so the staff side is checked as the role a signed-in phone really has.
+  await db.exec(`set request.jwt.claim.sub = '${staffId}'`);
+  await db.exec(`set role authenticated`);
+  try {
+    const staffSees = await db.query<{ n: number }>(
+      `select count(*)::int as n from public.capital_contributions`,
+    );
+    if (Number(staffSees.rows[0].n) !== 0) fail("a staff account can read what partners put in");
+
+    let staffWrote = true;
+    try {
+      await db.query(
+        `insert into public.capital_contributions (partner_id, amount_cents) values ($1, 100)`,
+        [staffId],
+      );
+    } catch {
+      staffWrote = false;
+    }
+    if (staffWrote) fail("a staff account could record an investment");
+  } finally {
+    await db.exec(`reset role`);
+  }
+
   return failures;
 }
 
@@ -680,6 +723,7 @@ async function main() {
     console.log("  ok    renaming the catalog does not rewrite history");
     console.log("  ok    a hybrid battery goes on hybrids only");
     console.log("  ok    copying a car brings new catalog parts, not trimmed ones");
+    console.log("  ok    only the owner sees or records what partners put in");
   } else {
     for (const f of behaviourFailures) console.error(`  FAIL  ${f}`);
     failed += behaviourFailures.length;

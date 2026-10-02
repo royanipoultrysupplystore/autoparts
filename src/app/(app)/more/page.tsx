@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   ChevronRight,
   Clock,
+  HandCoins,
   LogOut,
   BookOpen,
   Users,
@@ -93,6 +94,14 @@ export default async function MorePage() {
             />
             {finance && (
               <Row href="/team" icon={Users} label="Team" note="Who can sign in" />
+            )}
+            {finance && (
+              <Row
+                href="/investment"
+                icon={HandCoins}
+                label="Investment"
+                note="What each partner has put in"
+              />
             )}
             {storefrontEnabled && (
               <Row href="/shop" icon={Store} label="Public storefront" note="What buyers see" />
