@@ -63,6 +63,9 @@ export const PART_CATALOG_SEED: CatalogSeed[] = [
   { name: "Engine mount", category: "Engine", iconKey: "engine", sides: LR },
   { name: "Serpentine belt tensioner", category: "Engine", iconKey: "engine" },
   { name: "Dipstick tube", category: "Engine", iconKey: "engine" },
+  { name: "Engine shield cover", category: "Engine", iconKey: "engine" },
+  { name: "Engine firewall insulation", category: "Engine", iconKey: "generic-part" },
+  { name: "Air pressure sensor", category: "Engine", iconKey: "sensor" },
 
   // --------------------------------------------------------------- Cooling
   { name: "Radiator", category: "Cooling", iconKey: "radiator" },
@@ -106,6 +109,7 @@ export const PART_CATALOG_SEED: CatalogSeed[] = [
   { name: "Fuel filler neck", category: "Fuel", iconKey: "fuel-tank" },
   { name: "Charcoal canister", category: "Fuel", iconKey: "fuel-tank" },
   { name: "Fuel filter housing", category: "Fuel", iconKey: "fuel-tank" },
+  { name: "Fuel cap", category: "Fuel", iconKey: "fuel-tank" },
 
   // ------------------------------------------------------------ Electrical
   { name: "Alternator", category: "Electrical", iconKey: "alternator", highValue: true },
@@ -125,6 +129,8 @@ export const PART_CATALOG_SEED: CatalogSeed[] = [
   { name: "Immobilizer module", category: "Electrical", iconKey: "ecu" },
   { name: "Key/fob set", category: "Electrical", iconKey: "ecu" },
   { name: "Relay set", category: "Electrical", iconKey: "wiring" },
+  { name: "Battery sensor", category: "Electrical", iconKey: "battery" },
+  { name: "Hybrid battery", category: "Electrical", iconKey: "battery", highValue: true },
 
   // ------------------------------------------------ Suspension & steering
   { name: "Strut assembly", category: "Suspension & steering", iconKey: "strut", sides: FL_FR },
@@ -186,6 +192,14 @@ export const PART_CATALOG_SEED: CatalogSeed[] = [
   { name: "Windshield wiper arm set", category: "Exterior body", iconKey: "generic-part" },
   { name: "Wiper motor", category: "Exterior body", iconKey: "blower-motor" },
   { name: "Emblem/badge set", category: "Exterior body", iconKey: "generic-part" },
+  { name: "Fuel lid", category: "Exterior body", iconKey: "generic-part" },
+  { name: "Roof moulding", category: "Exterior body", iconKey: "quarter-panel", sides: LR },
+  { name: "Hood visor", category: "Exterior body", iconKey: "hood" },
+  { name: "Hood latch", category: "Exterior body", iconKey: "hood" },
+  { name: "Hood prop rod", category: "Exterior body", iconKey: "hood" },
+  { name: "Trunk latch", category: "Exterior body", iconKey: "trunk" },
+  { name: "Rebar absorber", category: "Exterior body", iconKey: "bumper", sides: FRONT_REAR },
+  { name: "Licence plate frame", category: "Exterior body", iconKey: "generic-part", sides: FRONT_REAR },
 
   // ----------------------------------------------------------------- Glass
   { name: "Windshield", category: "Glass", iconKey: "windshield" },
@@ -204,6 +218,7 @@ export const PART_CATALOG_SEED: CatalogSeed[] = [
   { name: "Interior dome light", category: "Lighting", iconKey: "fog-light" },
   { name: "HID/LED ballast", category: "Lighting", iconKey: "headlight", sides: LR },
   { name: "Licence plate light", category: "Lighting", iconKey: "fog-light" },
+  { name: "Headlight bracket", category: "Lighting", iconKey: "headlight", sides: LR },
 
   // -------------------------------------------------------------- Interior
   { name: "Dashboard assembly", category: "Interior", iconKey: "dashboard" },
@@ -214,6 +229,10 @@ export const PART_CATALOG_SEED: CatalogSeed[] = [
   { name: "Curtain airbag", category: "Interior", iconKey: "airbag", sides: LR },
   { name: "Side airbag", category: "Interior", iconKey: "airbag", sides: FL_FR },
   { name: "Airbag control module", category: "Interior", iconKey: "ecu" },
+  { name: "Airbag — knee", category: "Interior", iconKey: "airbag" },
+  { name: "Airbag amplifier", category: "Interior", iconKey: "airbag" },
+  { name: "Airbag sensor — interior", category: "Interior", iconKey: "sensor", sides: LR },
+  { name: "Airbag sensor — exterior", category: "Interior", iconKey: "sensor", sides: LR },
   { name: "Seat belt", category: "Interior", iconKey: "seatbelt", sides: CORNERS },
   { name: "Front seat", category: "Interior", iconKey: "seat", sides: LR },
   { name: "Rear seat bench", category: "Interior", iconKey: "seat" },
@@ -244,6 +263,10 @@ export const PART_CATALOG_SEED: CatalogSeed[] = [
   { name: "Floor mat set", category: "Interior", iconKey: "generic-part" },
   { name: "Interior rear view camera", category: "Interior", iconKey: "sensor" },
   { name: "Backup camera", category: "Interior", iconKey: "sensor" },
+  { name: "Gear shift cover", category: "Interior", iconKey: "console" },
+  { name: "Headlight switch column", category: "Interior", iconKey: "steering-wheel" },
+  { name: "USB port", category: "Interior", iconKey: "head-unit" },
+  { name: "Interior plastic cover", category: "Interior", iconKey: "door-panel" },
 ];
 
 /** Stable, URL-safe slug for a catalog entry. */

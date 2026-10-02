@@ -328,7 +328,7 @@ shown in full and buyers are asked to get in touch.
 - **Primary actions sit at the bottom of every sheet**, never the top. That
   is where the thumb is.
 - **The trim screen leads with bulk actions.** The catalog in this build
-  generates 239 parts per vehicle, not the ~150 the original spec estimated —
+  generates 268 parts per vehicle, not the ~150 the original spec estimated —
   so whole-category toggles and a "high value only" button are the primary
   interaction, not a secondary one.
 
