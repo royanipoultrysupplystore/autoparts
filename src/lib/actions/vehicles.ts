@@ -10,6 +10,7 @@ import {
 } from "@/lib/supabase/server";
 import { parseMoneyToCents } from "@/lib/money";
 import { vehicleLabel } from "@/lib/format";
+import type { FuelType } from "@/types/db";
 
 export type ActionState = { ok: boolean; error?: string; fieldErrors?: Record<string, string> };
 
@@ -378,6 +379,8 @@ export type PartsTemplate = {
   trim: string | null;
   parts_total: number;
   parts_priced: number;
+  /** Catalog parts added since that car's list was made, which a copy adds on top. */
+  parts_new: number;
   purchase_date: string;
 };
 
@@ -392,6 +395,7 @@ export async function findPartsTemplate(
   make: string,
   model: string,
   year?: number | null,
+  fuel?: FuelType | null,
 ): Promise<PartsTemplate | null> {
   const profile = await getCurrentProfile();
   if (!canWorkTheYard(profile)) return null;
@@ -402,6 +406,7 @@ export async function findPartsTemplate(
     p_make: make.trim(),
     p_model: model.trim(),
     p_year: year ?? null,
+    p_fuel: fuel ?? null,
   });
 
   if (error) return null;

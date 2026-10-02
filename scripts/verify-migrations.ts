@@ -578,6 +578,57 @@ async function behaviourChecks(db: PGlite): Promise<string[]> {
     fail("copying a hybrid's parts list onto a gas car brought the hybrid battery with it");
   }
 
+  // ---- A copy brings what the catalog learned since -------------------
+  // An earlier car, trimmed, and then the catalog grows. Copying it must
+  // bring the new entry and must not bring back what was trimmed off.
+  const corolla = async () => {
+    const res = await asPartner(
+      `insert into public.vehicles (year, make, model) values (2014, 'Toyota', 'Corolla') returning id`,
+    );
+    return (res.rows[0] as { id: string }).id;
+  };
+  const earlier = await corolla();
+  await asPartner(`select public.generate_parts_for_vehicle($1)`, [earlier]);
+  const leftMirror = await db.query<{ id: string }>(
+    `select id from public.parts where vehicle_id = $1 and name = 'Side mirror' and side = 'left'`,
+    [earlier],
+  );
+  await asPartner(`select public.trim_vehicle_parts($1, $2::uuid[])`, [
+    earlier,
+    [leftMirror.rows[0].id],
+  ]);
+
+  await db.exec(`
+    insert into public.part_catalog (name, slug, category, icon_key, sort_order, created_at)
+    values ('Fuel cap', 'fuel-cap', 'Fuel', 'fuel-tank', 5, now() + interval '1 minute');
+  `);
+
+  const offered = await asPartner(
+    `select parts_total, parts_new from public.find_parts_template('Toyota', 'Corolla', 2014, 'gas')`,
+  );
+  const offer = offered.rows[0] as { parts_total: number; parts_new: number } | undefined;
+  if (Number(offer?.parts_total) !== 4 || Number(offer?.parts_new) !== 1) {
+    fail(
+      `the template offer said ${offer?.parts_total} parts + ${offer?.parts_new} new, expected 4 + 1`,
+    );
+  }
+
+  const later = await corolla();
+  await asPartner(`select public.copy_parts_from_vehicle($1, $2)`, [earlier, later]);
+  const laterParts = await db.query<{ name: string; side: string }>(
+    `select name, side::text from public.parts where vehicle_id = $1`,
+    [later],
+  );
+  if (!laterParts.rows.some((p) => p.name === "Fuel cap")) {
+    fail("copying an earlier car did not bring the part added to the catalog since");
+  }
+  if (laterParts.rows.some((p) => p.name === "Side mirror" && p.side === "left")) {
+    fail("copying an earlier car brought back a part that was trimmed off it");
+  }
+  if (laterParts.rows.length !== 5) {
+    fail(`the copied car has ${laterParts.rows.length} parts, expected 5`);
+  }
+
   return failures;
 }
 
@@ -628,6 +679,7 @@ async function main() {
     console.log("  ok    only the owner manages the team, and cannot strand it");
     console.log("  ok    renaming the catalog does not rewrite history");
     console.log("  ok    a hybrid battery goes on hybrids only");
+    console.log("  ok    copying a car brings new catalog parts, not trimmed ones");
   } else {
     for (const f of behaviourFailures) console.error(`  FAIL  ${f}`);
     failed += behaviourFailures.length;

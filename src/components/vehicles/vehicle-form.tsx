@@ -133,7 +133,7 @@ export function VehicleForm({
   // still flash the old car's name for a frame before it went.
   const lookupKey =
     isNew && plan === "part_out"
-      ? `${make.trim().toLowerCase()}|${model.trim().toLowerCase()}|${year}`
+      ? `${make.trim().toLowerCase()}|${model.trim().toLowerCase()}|${year}|${fuel}`
       : "";
 
   const [found, setFound] = useState<{ key: string; template: PartsTemplate | null }>(
@@ -151,7 +151,7 @@ export function VehicleForm({
     // querying on every keystroke.
     let alive = true;
     const t = setTimeout(() => {
-      void findPartsTemplate(make, model, Number(year) || null).then((result) => {
+      void findPartsTemplate(make, model, Number(year) || null, fuel).then((result) => {
         if (alive) setFound({ key: lookupKey, template: result });
       });
     }, 350);
@@ -160,7 +160,7 @@ export function VehicleForm({
       alive = false;
       clearTimeout(t);
     };
-  }, [lookupKey, make, model, year]);
+  }, [lookupKey, make, model, year, fuel]);
 
   const copying = useTemplate && plan === "part_out";
 
@@ -296,6 +296,9 @@ export function VehicleForm({
               {template.parts_total} parts
               {template.parts_priced > 0
                 ? `, ${template.parts_priced} of them priced`
+                : ""}
+              {template.parts_new > 0
+                ? `. The ${template.parts_new} part${template.parts_new === 1 ? "" : "s"} added to the catalog since then come${template.parts_new === 1 ? "s" : ""} too`
                 : ""}
               . Start this car from that list instead of all{" "}
               {generatedPartCount(fuel)} — you can still trim and re-price it on the
