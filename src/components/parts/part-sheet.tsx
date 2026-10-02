@@ -93,7 +93,7 @@ export type SheetPart = {
   trim?: string | null;
 };
 
-type Mode = "detail" | "sell" | "reserve" | "edit" | "amend" | "sweep";
+type Mode = "detail" | "sell" | "reserve" | "edit" | "amend";
 
 export function PartSheet({
   part,
@@ -143,20 +143,18 @@ function PartSheetView({
   // back. It is fetched here rather than threaded through every list that
   // opens this sheet -- the search results, the vehicle screen -- none of
   // which have any reason to carry sale rows around.
-  // What went out bolted to this part, once it has just been sold.
-  const [companions, setCompanions] = useState<AssemblyCompanion[]>([]);
-
-  // And what WOULD go with it, asked up front -- so a complete engine can
-  // say it is a complete engine before anybody commits to selling it.
-  // "Engine assembly" is the catalog's name for it, not a yard's.
-  const [wouldTake, setWouldTake] = useState<number>(0);
+  // What would go with it, asked up front -- so a complete engine can say
+  // it is a complete engine before anybody commits to selling it, and the
+  // sell screen can ask which pieces actually went before the sale is
+  // recorded. "Engine assembly" is the catalog's name for it, not a yard's.
+  const [wouldGo, setWouldGo] = useState<AssemblyCompanion[]>([]);
 
   useEffect(() => {
     if (part.status !== "available" && part.status !== "reserved") return;
 
     let alive = true;
     void getAssemblyCompanions(part.id).then((found) => {
-      if (alive) setWouldTake(found.length);
+      if (alive) setWouldGo(found);
     });
     return () => {
       alive = false;
@@ -190,15 +188,19 @@ function PartSheetView({
 
   // Only the long forms want the full screen. The sell view is two fields
   // and should sit at the bottom, close to the thumb, rather than
-  // stretching over the whole phone.
+  // stretching over the whole phone -- unless it is a complete unit, when
+  // it carries the list of what goes with it.
+  const tall =
+    mode === "edit" || mode === "amend" || (mode === "sell" && wouldGo.length > 0);
+
   return (
-    <SheetContent tall={mode === "edit" || mode === "amend"}>
+    <SheetContent tall={tall}>
       {mode === "detail" && (
         <DetailView
           part={part}
           sale={sale}
           saleLoaded={saleLoaded}
-          wouldTake={wouldTake}
+          wouldTake={wouldGo.length}
           setMode={setMode}
           onOpenChange={onOpenChange}
           onChanged={onChanged}
@@ -216,20 +218,9 @@ function PartSheetView({
       {mode === "sell" && (
         <SellView
           part={part}
+          companions={wouldGo}
           onBack={() => setMode("detail")}
           onOpenChange={onOpenChange}
-          onChanged={onChanged}
-          onSweep={(found) => {
-            setCompanions(found);
-            setMode("sweep");
-          }}
-        />
-      )}
-      {mode === "sweep" && (
-        <SweepView
-          part={part}
-          companions={companions}
-          onDone={() => onOpenChange(false)}
           onChanged={onChanged}
         />
       )}
@@ -447,7 +438,7 @@ function DetailView({
             <p className="text-[13px] leading-relaxed text-accent">
               <strong className="font-semibold">This is the complete unit.</strong>{" "}
               Selling it takes {wouldTake} more part{wouldTake === 1 ? "" : "s"} off
-              the shelf with it — you&apos;ll tick which ones after the sale.
+              the shelf with it — you&apos;ll tick which ones go when you sell it.
             </p>
           </div>
         )}
@@ -560,17 +551,17 @@ function DetailView({
 // =====================================================================
 function SellView({
   part,
+  companions,
   onBack,
   onOpenChange,
   onChanged,
-  onSweep,
 }: {
   part: SheetPart;
+  /** What is still on the shelf that normally leaves bolted to this part. */
+  companions: AssemblyCompanion[];
   onBack: () => void;
   onOpenChange: (open: boolean) => void;
   onChanged?: (id: string, status: PartStatus) => void;
-  /** Called instead of closing, when the part took others with it. */
-  onSweep: (companions: AssemblyCompanion[]) => void;
 }) {
   const router = useRouter();
   const profile = useProfile();
@@ -580,6 +571,14 @@ function SellView({
   const [price, setPrice] = useState(centsToInput(part.asking_price_cents));
   const [payment, setPayment] = useState<PaymentMethod>("cash");
   const [conflict, setConflict] = useState<{ message: string; detail?: string } | null>(null);
+
+  // An engine leaves with its head and its oil pan still bolted on, so
+  // those start ticked. Anything on hold starts unticked: a buyer was
+  // promised it, and breaking that should be somebody's decision rather
+  // than a default. Unticked parts stay on the shelf.
+  const [going, setGoing] = useState<Set<string>>(
+    () => new Set(companions.filter((c) => c.status === "available").map((c) => c.id)),
+  );
 
   // Focus and select the price on open, so the common case -- sold at
   // the asking price -- is one tap, and haggling is one overtype.
@@ -608,19 +607,31 @@ function SellView({
       });
 
       if (result.ok) {
-        toast.success(`Sold ${part.name}`, { description: formatMoney(cents ?? 0) });
         onChanged?.(part.id, "sold");
-        router.refresh();
 
-        // An engine leaves with its head and its oil pan still bolted on.
-        // Ask before taking them off the shelf -- the yard knows what
-        // actually came off the car, and this list is only a guess.
-        const companions = await getAssemblyCompanions(part.id);
-        if (companions.length > 0) {
-          onSweep(companions);
-          return;
+        // The sale stands whatever happens next; this only tidies the shelf.
+        const ids = [...going];
+        if (ids.length > 0) {
+          const swept = await includePartsWith(part.id, ids);
+          if (!swept.ok) {
+            toast.error(`Sold ${part.name}, but the shelf was not updated`, {
+              description: `${swept.error} — take the attached parts off by hand.`,
+              duration: 9000,
+            });
+            router.refresh();
+            onOpenChange(false);
+            return;
+          }
+          for (const id of ids) onChanged?.(id, "included");
+          const n = swept.included ?? 0;
+          toast.success(`Sold ${part.name}`, {
+            description: `${formatMoney(cents ?? 0)} · ${n} part${n === 1 ? "" : "s"} went with it`,
+          });
+        } else {
+          toast.success(`Sold ${part.name}`, { description: formatMoney(cents ?? 0) });
         }
 
+        router.refresh();
         onOpenChange(false);
         return;
       }
@@ -697,6 +708,22 @@ function SellView({
             ))}
           </div>
         </Field>
+
+        {companions.length > 0 && (
+          <CompanionChecklist
+            part={part}
+            companions={companions}
+            going={going}
+            onToggle={(id) =>
+              setGoing((prev) => {
+                const next = new Set(prev);
+                if (next.has(id)) next.delete(id);
+                else next.add(id);
+                return next;
+              })
+            }
+          />
+        )}
 
         <p className="pb-2 text-[12.5px] leading-relaxed text-ink-subtle">
           Recorded against{" "}
@@ -1121,92 +1148,44 @@ function AmendView({
 }
 
 // =====================================================================
-// Sweep -- what left the yard attached to the part just sold
+// What goes with a complete unit -- chosen on the sell screen, before the
+// sale is recorded, so nobody has to remember a second step afterwards
 // =====================================================================
-function SweepView({
+function CompanionChecklist({
   part,
   companions,
-  onDone,
-  onChanged,
+  going,
+  onToggle,
 }: {
   part: SheetPart;
   companions: AssemblyCompanion[];
-  onDone: () => void;
-  onChanged?: (id: string, status: PartStatus) => void;
+  going: Set<string>;
+  onToggle: (id: string) => void;
 }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
-
-  // Everything ticked to begin with: the common case is that the whole
-  // lump went out on the pallet. Untick what stayed behind.
-  const [going, setGoing] = useState<Set<string>>(
-    () => new Set(companions.map((c) => c.id)),
-  );
-
-  const held = companions.filter((c) => c.status === "reserved");
+  const heldGoing = companions.filter(
+    (c) => c.status === "reserved" && going.has(c.id),
+  ).length;
   const shelfValue = companions
     .filter((c) => going.has(c.id))
     .reduce((n, c) => n + c.asking_price_cents, 0);
-
-  function toggle(id: string) {
-    setGoing((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
-  function confirm() {
-    startTransition(async () => {
-      const ids = [...going];
-      const result = await includePartsWith(part.id, ids);
-
-      if (!result.ok) {
-        toast.error("The shelf was not updated", {
-          description: `${result.error} — ${part.name} is still sold.`,
-          duration: 9000,
-        });
-        onDone();
-        return;
-      }
-
-      if ((result.included ?? 0) > 0) {
-        for (const id of ids) onChanged?.(id, "included");
-        toast.success(
-          `${result.included} part${result.included === 1 ? "" : "s"} left with ${part.name}`,
-          { description: "They are off the shelf and out of search." },
-        );
-      }
-
-      router.refresh();
-      onDone();
-    });
-  }
+  const staying = companions.length - going.size;
 
   return (
-    <>
-      <SheetHeader>
-        <SheetTitle>What went with it?</SheetTitle>
-        <SheetDescription>
-          {part.name} is sold. These were still on the shelf.
-        </SheetDescription>
-      </SheetHeader>
-
-      <SheetBody className="space-y-3">
+    <Field label="What goes with it">
+      <div className="space-y-3">
         <p className="rounded-xl bg-surface-2 px-3.5 py-3 text-[13px] leading-relaxed text-ink-muted">
-          Ticked parts come off the shelf and out of search. They are not
-          recorded as sales — nobody paid for them separately; their money is
-          in the price of {part.name}. Untick anything you actually kept.
+          Ticked parts leave with {part.name} and come off the shelf. They are
+          not recorded as sales — their money is in this price. Untick anything
+          that stays behind; it stays on the shelf to sell on its own.
         </p>
 
-        {held.length > 0 && (
+        {heldGoing > 0 && (
           <div className="flex items-start gap-2.5 rounded-xl bg-reserved-soft px-3.5 py-3">
             <Clock className="mt-0.5 size-[18px] shrink-0 text-reserved" />
             <p className="text-[13px] leading-relaxed text-reserved">
-              {held.length === 1 ? "One of these is" : `${held.length} of these are`} on
-              hold for a buyer. Taking{" "}
-              {held.length === 1 ? "it" : "them"} off the shelf breaks that promise.
+              {heldGoing === 1 ? "One ticked part is" : `${heldGoing} ticked parts are`} on
+              hold for a buyer. Sending {heldGoing === 1 ? "it" : "them"} with this
+              unit breaks that promise.
             </p>
           </div>
         )}
@@ -1223,7 +1202,7 @@ function SweepView({
                 )}
                 style={{ minHeight: 48 }}
               >
-                <Checkbox checked={ticked} onCheckedChange={() => toggle(c.id)} />
+                <Checkbox checked={ticked} onCheckedChange={() => onToggle(c.id)} />
                 <span className="min-w-0 flex-1">
                   <span
                     className={cn(
@@ -1235,7 +1214,8 @@ function SweepView({
                   </span>
                   <span className="block text-[12px] leading-tight text-ink-subtle">
                     {c.status === "reserved" ? "On hold · " : ""}
-                    {formatMoney(c.asking_price_cents)}
+                    {ticked ? "Goes with it" : "Stays on the shelf"}
+                    {c.asking_price_cents > 0 ? ` · ${formatMoney(c.asking_price_cents)}` : ""}
                   </span>
                 </span>
               </label>
@@ -1243,27 +1223,14 @@ function SweepView({
           })}
         </div>
 
-        <p className="pb-2 text-[12.5px] leading-relaxed text-ink-subtle">
+        <p className="text-[12.5px] leading-relaxed text-ink-subtle">
           {going.size === 0
-            ? "Nothing ticked — the shelf stays as it is."
-            : `${going.size} of ${companions.length} coming off the shelf, ${formatMoney(shelfValue)} of asking price.`}
+            ? "Nothing ticked — every part stays on the shelf."
+            : `${going.size} of ${companions.length} go with it` +
+              (shelfValue > 0 ? `, ${formatMoney(shelfValue)} of asking price.` : ".") +
+              (staying > 0 ? ` ${staying} stay on the shelf.` : "")}
         </p>
-      </SheetBody>
-
-      <SheetFooter>
-        <div className="flex gap-2.5">
-          <Button variant="secondary" size="lg" onClick={onDone} disabled={pending}>
-            Leave them
-          </Button>
-          <Button size="lg" block onClick={confirm} disabled={pending}>
-            {pending
-              ? "Updating…"
-              : going.size === 0
-                ? "Done"
-                : `Take ${going.size} off the shelf`}
-          </Button>
-        </div>
-      </SheetFooter>
-    </>
+      </div>
+    </Field>
   );
 }
