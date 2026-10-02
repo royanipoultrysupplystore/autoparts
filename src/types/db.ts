@@ -150,6 +150,8 @@ export type PartCatalogEntry = {
   is_assembly: boolean;
   /** This entry normally leaves attached to that assembly. */
   assembly_of: string | null;
+  /** Only cars with one of these fuel types get this part. Null: every car. */
+  fuel_types: FuelType[] | null;
   sort_order: number;
   is_active: boolean;
   created_at: string;

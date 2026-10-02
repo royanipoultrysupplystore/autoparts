@@ -298,7 +298,7 @@ export function VehicleForm({
                 ? `, ${template.parts_priced} of them priced`
                 : ""}
               . Start this car from that list instead of all{" "}
-              {generatedPartCount()} — you can still trim and re-price it on the
+              {generatedPartCount(fuel)} — you can still trim and re-price it on the
               next screen.
             </span>
           </span>
@@ -715,7 +715,13 @@ export function VehicleForm({
         </section>
       )}
 
-      <SubmitBar label={submitLabel} isNew={isNew} plan={plan} copying={copying} />
+      <SubmitBar
+        label={submitLabel}
+        isNew={isNew}
+        plan={plan}
+        fuel={fuel}
+        copying={copying}
+      />
     </form>
   );
 }
@@ -724,11 +730,14 @@ function SubmitBar({
   label,
   isNew,
   plan,
+  fuel,
   copying,
 }: {
   label: string;
   isNew: boolean;
   plan: VehiclePlan;
+  /** The list is built for this fuel type: only a hybrid gets a hybrid battery. */
+  fuel: FuelType;
   /** Starting from an earlier car of the same make and model. */
   copying: boolean;
 }) {
@@ -767,7 +776,7 @@ function SubmitBar({
             ) : (
               <>
                 Saving builds the full parts list for this car — up to{" "}
-                {generatedPartCount()} rows. You&apos;ll trim it down on the next
+                {generatedPartCount(fuel)} rows. You&apos;ll trim it down on the next
                 screen.
               </>
             )

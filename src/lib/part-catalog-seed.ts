@@ -7,7 +7,7 @@
  * rows completely untouched, because those snapshot their own name.
  */
 
-import type { PartSide } from "@/types/db";
+import type { FuelType, PartSide } from "@/types/db";
 
 export type CatalogSeed = {
   name: string;
@@ -15,6 +15,8 @@ export type CatalogSeed = {
   iconKey: string;
   sides?: PartSide[];
   highValue?: boolean;
+  /** Only cars with one of these fuel types get it. Omitted: every car. */
+  fuels?: FuelType[];
 };
 
 const NONE: PartSide[] = ["none"];
@@ -130,7 +132,7 @@ export const PART_CATALOG_SEED: CatalogSeed[] = [
   { name: "Key/fob set", category: "Electrical", iconKey: "ecu" },
   { name: "Relay set", category: "Electrical", iconKey: "wiring" },
   { name: "Battery sensor", category: "Electrical", iconKey: "battery" },
-  { name: "Hybrid battery", category: "Electrical", iconKey: "battery", highValue: true },
+  { name: "Hybrid battery", category: "Electrical", iconKey: "battery", highValue: true, fuels: ["hybrid"] },
 
   // ------------------------------------------------ Suspension & steering
   { name: "Strut assembly", category: "Suspension & steering", iconKey: "strut", sides: FL_FR },
@@ -297,13 +299,21 @@ export function buildCatalogRows() {
       icon_key: entry.iconKey,
       default_sides: entry.sides ?? NONE,
       is_high_value: entry.highValue ?? false,
+      fuel_types: entry.fuels ?? null,
       sort_order: catIdx * 1000 + i,
       is_active: true,
     };
   });
 }
 
-/** How many `parts` rows one vehicle generates from the active catalog. */
-export function generatedPartCount(): number {
-  return PART_CATALOG_SEED.reduce((n, e) => n + (e.sides?.length ?? 1), 0);
+/**
+ * How many `parts` rows one vehicle generates from the active catalog.
+ * Without a fuel type, the most any car can get.
+ */
+export function generatedPartCount(fuel?: FuelType): number {
+  return PART_CATALOG_SEED.reduce(
+    (n, e) =>
+      !fuel || !e.fuels || e.fuels.includes(fuel) ? n + (e.sides?.length ?? 1) : n,
+    0,
+  );
 }

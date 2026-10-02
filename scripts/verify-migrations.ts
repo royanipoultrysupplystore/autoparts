@@ -536,6 +536,48 @@ async function behaviourChecks(db: PGlite): Promise<string[]> {
     fail(`renaming the catalog rewrote history: the part is now "${historical.rows[0].name}"`);
   }
 
+  // ---- A part can belong to one fuel type -----------------------------
+  // The catalog now holds a hybrid-only entry. A gas car built or copied
+  // from the catalog must not get it; a hybrid must.
+  await db.exec(`
+    insert into public.part_catalog (name, slug, category, icon_key, sort_order, fuel_types)
+    values ('Hybrid battery', 'hybrid-battery', 'Electrical', 'battery', 4,
+            array['hybrid']::public.fuel_type[]);
+  `);
+
+  const fuelCar = async (fuel: string) => {
+    const res = await asPartner(
+      `insert into public.vehicles (year, make, model, fuel_type)
+       values (2014, 'Toyota', 'Prius c', $1::public.fuel_type) returning id`,
+      [fuel],
+    );
+    return (res.rows[0] as { id: string }).id;
+  };
+  const hybridBatteries = async (vehicle: string) =>
+    Number(
+      (
+        await db.query<{ n: number }>(
+          `select count(*)::int as n from public.parts
+            where vehicle_id = $1 and name = 'Hybrid battery'`,
+          [vehicle],
+        )
+      ).rows[0].n,
+    );
+
+  const gasCar = await fuelCar("gas");
+  const hybridCar = await fuelCar("hybrid");
+  await asPartner(`select public.generate_parts_for_vehicle($1)`, [gasCar]);
+  await asPartner(`select public.generate_parts_for_vehicle($1)`, [hybridCar]);
+
+  if ((await hybridBatteries(gasCar)) !== 0) fail("a gas car was given a hybrid battery");
+  if ((await hybridBatteries(hybridCar)) !== 1) fail("a hybrid car was not given its hybrid battery");
+
+  const copiedGasCar = await fuelCar("gas");
+  await asPartner(`select public.copy_parts_from_vehicle($1, $2)`, [hybridCar, copiedGasCar]);
+  if ((await hybridBatteries(copiedGasCar)) !== 0) {
+    fail("copying a hybrid's parts list onto a gas car brought the hybrid battery with it");
+  }
+
   return failures;
 }
 
@@ -585,6 +627,7 @@ async function main() {
     console.log("  ok    only the owner sees money; partners and staff run the yard");
     console.log("  ok    only the owner manages the team, and cannot strand it");
     console.log("  ok    renaming the catalog does not rewrite history");
+    console.log("  ok    a hybrid battery goes on hybrids only");
   } else {
     for (const f of behaviourFailures) console.error(`  FAIL  ${f}`);
     failed += behaviourFailures.length;

@@ -54,15 +54,19 @@ async function seedCatalog(db: pg.Client) {
   await db.query(
     `
     insert into public.part_catalog
-      (name, slug, category, icon_key, default_sides, is_high_value, sort_order, is_active)
+      (name, slug, category, icon_key, default_sides, is_high_value, sort_order, is_active,
+       fuel_types)
     select
       r.name, r.slug, r.category, r.icon_key,
       (select array_agg(s::public.part_side)
          from jsonb_array_elements_text(r.default_sides) s),
-      r.is_high_value, r.sort_order, r.is_active
+      r.is_high_value, r.sort_order, r.is_active,
+      (select array_agg(f::public.fuel_type)
+         from jsonb_array_elements_text(r.fuel_types) f)
     from jsonb_to_recordset($1::jsonb) as r(
       name text, slug text, category text, icon_key text,
-      default_sides jsonb, is_high_value boolean, sort_order int, is_active boolean
+      default_sides jsonb, is_high_value boolean, sort_order int, is_active boolean,
+      fuel_types jsonb
     )
     on conflict (slug) do update set
       name          = excluded.name,
@@ -71,7 +75,8 @@ async function seedCatalog(db: pg.Client) {
       default_sides = excluded.default_sides,
       is_high_value = excluded.is_high_value,
       sort_order    = excluded.sort_order,
-      is_active     = excluded.is_active
+      is_active     = excluded.is_active,
+      fuel_types    = excluded.fuel_types
     `,
     [JSON.stringify(rows)],
   );
