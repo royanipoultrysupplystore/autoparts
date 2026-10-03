@@ -1,6 +1,6 @@
 import "server-only";
 import { createSupabaseServer } from "@/lib/supabase/server";
-import type { PartCondition, PartStatus, SearchResult } from "@/types/db";
+import type { PartCondition, PartStatus, SearchResult, SearchVehicle } from "@/types/db";
 
 /**
  * The search screen's data layer.
@@ -94,4 +94,20 @@ export async function getFilterOptions(): Promise<{
     categories: cats,
     yearRange: years.length ? [Math.min(...years), Math.max(...years)] : null,
   };
+}
+
+
+/**
+ * The cars a partner can pick before searching: everything being parted
+ * out, newest first, which is the order they are asked about in.
+ */
+export async function getSearchVehicles(): Promise<SearchVehicle[]> {
+  const supabase = await createSupabaseServer();
+  const { data } = await supabase
+    .from("vehicles")
+    .select("id, stock_number, year, make, model, trim, exterior_colour")
+    .eq("plan", "part_out")
+    .in("status", ["incoming", "parting_out", "depleted"])
+    .order("stock_number", { ascending: false });
+  return (data ?? []) as SearchVehicle[];
 }

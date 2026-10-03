@@ -406,3 +406,14 @@ export type CatalogOption = {
   default_sides: PartSide[];
   is_high_value: boolean;
 };
+
+/** A car the search screen can be narrowed to. */
+export type SearchVehicle = {
+  id: string;
+  stock_number: string;
+  year: number;
+  make: string;
+  model: string;
+  trim: string | null;
+  exterior_colour: string | null;
+};

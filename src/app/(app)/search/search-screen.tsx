@@ -8,9 +8,10 @@ import { Button } from "@/components/ui/button";
 import { PartSheet, type SheetPart } from "@/components/parts/part-sheet";
 import { ResultRow } from "./result-row";
 import { EMPTY_FILTERS, FilterSheet, countActiveFilters, type Filters } from "./filter-sheet";
+import { VehiclePicker, vehicleShortLabel } from "./vehicle-picker";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/toaster";
-import type { PartStatus, SearchResult } from "@/types/db";
+import type { PartStatus, SearchResult, SearchVehicle } from "@/types/db";
 
 /** The subset of a parts row that a realtime UPDATE hands back. */
 type PartsRealtimeRow = {
@@ -36,13 +37,20 @@ const DEBOUNCE_MS = 180;
 export function SearchScreen({
   options,
   initialQuery,
+  vehicles,
+  initialVehicleId,
 }: {
   options: { makes: string[]; models: string[]; categories: string[] };
   initialQuery: string;
+  vehicles: SearchVehicle[];
+  initialVehicleId: string | null;
 }) {
   const supabase = useMemo(() => getSupabaseBrowser(), []);
 
   const [query, setQuery] = useState(initialQuery);
+  const [vehicle, setVehicle] = useState<SearchVehicle | null>(
+    () => vehicles.find((v) => v.id === initialVehicleId) ?? null,
+  );
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [total, setTotal] = useState(0);
@@ -59,12 +67,12 @@ export function SearchScreen({
   const requestId = useRef(0);
 
   const runSearch = useCallback(
-    async (q: string, f: Filters, offset: number) => {
+    async (q: string, f: Filters, offset: number, v: SearchVehicle | null) => {
       const id = ++requestId.current;
       if (offset === 0) setLoading(true);
       else setLoadingMore(true);
 
-      const { data, error } = await supabase.rpc("search_parts", {
+      const params = {
         p_query: q.trim(),
         p_makes: f.makes.length ? f.makes : null,
         p_models: f.models.length ? f.models : null,
@@ -77,7 +85,33 @@ export function SearchScreen({
         p_offset: offset,
         p_sold_from: f.soldFrom || null,
         p_sold_to: f.soldTo || null,
-      });
+      };
+
+      let { data, error } = await supabase.rpc(
+        "search_parts",
+        v ? { ...params, p_vehicle_id: v.id } : params,
+      );
+
+      // Until migration 0022 is applied the database has no car filter,
+      // and refuses a call that names one. Narrow by make, model and year
+      // instead -- a handful of cars at most -- and keep only this one.
+      let narrowedHere = false;
+      if (error && v && (error.code === "PGRST202" || error.message.includes("p_vehicle_id"))) {
+        if (offset > 0) {
+          setLoadingMore(false);
+          return;
+        }
+        narrowedHere = true;
+        ({ data, error } = await supabase.rpc("search_parts", {
+          ...params,
+          p_makes: [v.make],
+          p_models: [v.model],
+          p_year_min: v.year,
+          p_year_max: v.year,
+          p_limit: 200,
+          p_offset: 0,
+        }));
+      }
 
       // A stale response must never overwrite a fresher one.
       if (id !== requestId.current) return;
@@ -89,9 +123,12 @@ export function SearchScreen({
         return;
       }
 
-      const rows = (data ?? []) as SearchResult[];
+      let rows = (data ?? []) as SearchResult[];
+      if (narrowedHere && v) rows = rows.filter((r) => r.vehicle_id === v.id);
       setError(null);
-      setTotal(rows[0]?.total_count ?? (offset === 0 ? 0 : total));
+      setTotal(
+        narrowedHere ? rows.length : (rows[0]?.total_count ?? (offset === 0 ? 0 : total)),
+      );
       setResults((prev) => (offset === 0 ? rows : [...prev, ...rows]));
       setLoading(false);
       setLoadingMore(false);
@@ -101,12 +138,26 @@ export function SearchScreen({
 
   // Debounced search on every keystroke and filter change.
   useEffect(() => {
-    const t = setTimeout(() => void runSearch(query, filters, 0), DEBOUNCE_MS);
+    const t = setTimeout(() => void runSearch(query, filters, 0, vehicle), DEBOUNCE_MS);
     return () => clearTimeout(t);
     // runSearch is intentionally omitted: it closes over `total`, and
     // re-running on every count change would loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, filters]);
+  }, [query, filters, vehicle]);
+
+  // The chosen car lives in the address too, so a refresh, or the back
+  // button from a part's vehicle page, comes back to the same car.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (vehicle) url.searchParams.set("v", vehicle.id);
+    else url.searchParams.delete("v");
+    window.history.replaceState(window.history.state, "", url);
+  }, [vehicle]);
+
+  function chooseVehicle(v: SearchVehicle | null) {
+    setVehicle(v);
+    inputRef.current?.focus();
+  }
 
   // ------------------------------------------------------------------
   // Realtime. A status change on another phone lands here.
@@ -225,8 +276,16 @@ export function SearchScreen({
               autoCapitalize="none"
               spellCheck={false}
               enterKeyHint="search"
-              placeholder="civic mirror, front bumper…"
-              aria-label="Search every part in the yard"
+              placeholder={
+                vehicle
+                  ? `Search this ${vehicle.model}: mirror, bumper…`
+                  : "civic mirror, front bumper…"
+              }
+              aria-label={
+                vehicle
+                  ? `Search the parts of the ${vehicleShortLabel(vehicle)}`
+                  : "Search every part in the yard"
+              }
               className={cn(
                 "h-[52px] w-full rounded-xl border border-line-strong bg-surface pl-11 pr-11",
                 "text-[17px] text-ink placeholder:text-ink-subtle",
@@ -252,6 +311,8 @@ export function SearchScreen({
 
         {/* Filter row. The available-only toggle is right here, not buried. */}
         <div className="no-scrollbar flex items-center gap-2 overflow-x-auto px-3 pb-2.5">
+          <VehiclePicker vehicles={vehicles} selected={vehicle} onSelect={chooseVehicle} />
+
           <FilterSheet filters={filters} onApply={setFilters} options={options} />
 
           <button
@@ -292,6 +353,7 @@ export function SearchScreen({
           <p className="tnum mb-2 px-1 text-[12.5px] text-ink-subtle">
             {total} {total === 1 ? "part" : "parts"}
             {showingAvailableOnly ? " on the shelf" : ""}
+            {vehicle ? ` · ${vehicleShortLabel(vehicle)} ${vehicle.stock_number} only` : ""}
           </p>
         )}
 
@@ -305,13 +367,28 @@ export function SearchScreen({
               className="mt-3"
               variant="secondary"
               size="sm"
-              onClick={() => void runSearch(query, filters, 0)}
+              onClick={() => void runSearch(query, filters, 0, vehicle)}
             >
               Try again
             </Button>
           </Card>
         ) : results.length === 0 ? (
-          query.trim() ? (
+          vehicle ? (
+            <EmptyState
+              icon={<SearchIcon className="size-7" />}
+              title={
+                query.trim()
+                  ? `No “${query.trim()}” on the ${vehicleShortLabel(vehicle)}`
+                  : `Nothing on the shelf from the ${vehicleShortLabel(vehicle)}`
+              }
+              body={
+                showingAvailableOnly
+                  ? "It may have sold already, or another car of the same kind may have one."
+                  : "Another car of the same kind may have one."
+              }
+              action={{ label: "Search all cars", onClick: () => chooseVehicle(null) }}
+            />
+          ) : query.trim() ? (
             <EmptyState
               icon={<SearchIcon className="size-7" />}
               title={`Nothing on the shelf for “${query.trim()}”`}
@@ -368,7 +445,7 @@ export function SearchScreen({
                 size="md"
                 className="mt-3"
                 disabled={loadingMore}
-                onClick={() => void runSearch(query, filters, results.length)}
+                onClick={() => void runSearch(query, filters, results.length, vehicle)}
               >
                 {loadingMore ? "Loading…" : `Show more (${total - results.length} left)`}
               </Button>

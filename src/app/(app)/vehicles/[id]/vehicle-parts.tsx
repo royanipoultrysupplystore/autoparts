@@ -1,8 +1,9 @@
 "use client";
 
 import { memo, useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Store, Tag, X } from "lucide-react";
+import { ChevronDown, Search as SearchIcon, Store, Tag, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -184,6 +185,20 @@ export function VehicleParts({
 
   return (
     <>
+      {/*
+        Finding one part in 268 by opening categories is slow. This hands
+        the job to the search screen, already narrowed to this car.
+      */}
+      {vehicle.plan !== "repair_and_sell" && parts.length > 0 && !selecting && (
+        <Link
+          href={`/search?v=${vehicle.id}`}
+          className="mb-3 flex h-12 items-center gap-2.5 rounded-xl border border-line-strong bg-surface px-3.5 text-[15px] text-ink-subtle active:bg-surface-2"
+        >
+          <SearchIcon className="size-[18px] shrink-0" />
+          Search this car&apos;s parts
+        </Link>
+      )}
+
       {/* Selection toolbar */}
       <div className="mb-2.5 flex items-center justify-between gap-3 px-1">
         <span className="text-[13px] font-semibold uppercase tracking-[0.06em] text-ink-subtle">

@@ -630,6 +630,20 @@ async function behaviourChecks(db: PGlite): Promise<string[]> {
     fail(`the copied car has ${laterParts.rows.length} parts, expected 5`);
   }
 
+  // ---- Searching one car finds that car and no other ------------------
+  // The two Corollas above are the same year, make and model, which is
+  // exactly the case the words alone cannot tell apart.
+  const oneCar = await db.query<{ n: number; others: number }>(
+    `select count(*)::int as n,
+            count(*) filter (where vehicle_id <> $1)::int as others
+       from public.search_parts(p_query => '', p_statuses => null, p_vehicle_id => $1)`,
+    [later],
+  );
+  if (Number(oneCar.rows[0].n) === 0) fail("searching one car found none of its parts");
+  if (Number(oneCar.rows[0].others) !== 0) {
+    fail(`searching one car returned ${oneCar.rows[0].others} parts from other cars`);
+  }
+
   // ---- What partners put in is the owner's to see --------------------
   // By this point the first member has been promoted to owner.
   try {
@@ -724,6 +738,7 @@ async function main() {
     console.log("  ok    a hybrid battery goes on hybrids only");
     console.log("  ok    copying a car brings new catalog parts, not trimmed ones");
     console.log("  ok    only the owner sees or records what partners put in");
+    console.log("  ok    searching one car finds that car and no other");
   } else {
     for (const f of behaviourFailures) console.error(`  FAIL  ${f}`);
     failed += behaviourFailures.length;
